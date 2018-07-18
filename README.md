@@ -159,7 +159,7 @@ This utility is designed to be multi-threaded by nature to download multiple SST
 
 Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads tha can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter backup items without actually downloading it.
 
-When "-d <concurrent_downloading_thread_num>" option is provided, the backup SSTable files will be downloaded:
+When "-d <concurrent_downloading_thread_num>" option is provided, the backup SSTables files will be downloaded (from NFS backup location) to the spcified local download home directory. The following 2 options determine how the local download home directory is organized:
 * The "-cls <true|false>" option controls whether to clear the local download home directory before starting downloading!
 * The "-nds <true|false>" option controls whether to maintain backup location folder structure underthe local download home directory. We maintain such structure by default in order to organized the recovered SSTables by keyspaces and tables. When this option has a "true" value (don't maintain the backup location folder structure), all restored SSTables are flattenly put directly under the local download home directory. <b>In order to avoid possible SSTable name conflict among different keyspaces and/or tables. "-nds <true|false>" option ONLY works when you specify "-t" option.</b>
 
@@ -191,7 +191,7 @@ An example is demonstrated below.
 
 ## 2.4. Examples
 
-1. List **Only** OpsCenter S3 backup items for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/9/2018 3:52 PM
+1. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
   -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
@@ -202,7 +202,7 @@ java
   -obt "7/17/2018 10:02 PM"
 ```
 
-2. List **Only** OpsCenter S3 backup items for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/9/2018 3:52 PM
+2. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
   -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
@@ -212,7 +212,7 @@ java
   -obt "7/17/2018 10:02 PM"
 ```
 
-3. List and **Download** (with concurren downloading thread number 5) OpsCenter S3 backup items for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/9/2018 3:52 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
+3. List and **Download** (with concurren downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
   -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
