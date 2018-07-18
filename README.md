@@ -69,17 +69,6 @@ The program needs a few Java options and parameters to work properly:
         </tr>
     </thead>
     <tbody>
-        <tr>
-            <td> -Daws.accessKeyId=&lt; your_aws_access_key &gt; </td>
-            <td rowspan=2> 
-                <li> AWS access credentials to access S3 bucket. </li>
-              <li> <b>AWS default credential file (~/.aws/credentials)</b> is also supported and <b>takes precedence</b> over the credential JVM options. </li>
-            </td>
-            <td rowspan=2> No </td>
-        </tr>
-        <tr>
-            <td> -Daws.secretKey=&lt; your_aws_secret_key &gt; </td>
-        </tr>
         <tr> 
             <td> -l &lt; all | DC:"&lt;DC_name&gt;" | me[:"&lt;dsenode_host_id_string&gt;"] </td>
             <td> List S3 backup items on the commandline output: <br/>
