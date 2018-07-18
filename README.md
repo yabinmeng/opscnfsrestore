@@ -265,8 +265,8 @@ List and download OpsCenter NFS backup items for specified host (74c08172-9870-4
         >>> 4668 of 4668 bytes transferred.
      [Thread 0] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Summary.db[keyspace: testks; table: songs]" completed 
         >>> 92 of 92 bytes transferred.
-   - Existing Thread 0 at 2018-07-18 17:28:04 (duration: 0 seconds): 6 of 6 OpsCenter backup SSTables downloaded, 0 failed.
+   - Existing Thread 0 at 2018-07-18 17:28:04 (duration: 0 seconds): 6 of 6 OpsCenter backup SSTable files downloaded, 0 failed.
      [Thread 1] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Summary.db[keyspace: testks; table: testbl]" completed 
         >>> 56 of 56 bytes transferred.
-   - Existing Thread 1 at 2018-07-18 17:28:04 (duration: 0 seconds): 6 of 6 OpsCenter backup SSTables, 0 failed.
+   - Existing Thread 1 at 2018-07-18 17:28:04 (duration: 0 seconds): 6 of 6 OpsCenter backup SSTable files downloaded, 0 failed.
 ```
