@@ -157,7 +157,7 @@ This utility is designed to be multi-threaded by nature to download multiple SST
 
 **NOTE**: Currently this utility ONLY supports C* table with "mc" format (C* 3.0+/DSE 5.0/DSE5.1). It will be extended in the future to support other versions of formats.
 
-Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads tha can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter backup items without actually downloading it.
+Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads tha can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter backup SSTables without actually downloading it.
 
 When "-d <concurrent_downloading_thread_num>" option is provided, the backup SSTables files will be downloaded (from NFS backup location) to the spcified local download home directory. The following 2 options determine how the local download home directory is organized:
 * The "-cls <true|false>" option controls whether to clear the local download home directory before starting downloading!
