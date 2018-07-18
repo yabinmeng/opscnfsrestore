@@ -1,33 +1,35 @@
 # 1. Problem Overview
 
-DataStax OpsCenter simplifies the task of backup and restore of data out of a DSE (DataStax Enterprise) cluster a lot through its out-of-the-box feature of [Backup Service](https://docs.datastax.com/en/opscenter/6.5/opsc/online_help/services/opscBackupService.html). Through this service, a user can choose to bakup DSE data to multiple locations, including AWS S3, which becomes a more and more popular choice in today's ever-increasing cloud environment.
+DataStax OpsCenter simplifies the task of backup and restore of data out of a DSE (DataStax Enterprise) cluster a lot through its out-of-the-box feature of [Backup Service](https://docs.datastax.com/en/opscenter/6.5/opsc/online_help/services/opscBackupService.html). Through this service, a user can choose to bakup DSE data to multiple locations, including NFS and AWS S3.
 
 **==Restore Challenge==**
 
-When we use OpsCener Service to restore backup data from S3, behind the scene it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches backup data from 
-S3 bucket and once it is done, it kicks of "sstableloader" to bulk-loading data into DSE cluster. It repeats the same process until all backup data in S3 bucket has been processed.
+When we use OpsCener Service to restore backup data from another location like NFS or S3, behind the scene it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches matching backup data from the backup location and once it is done, it kicks of "sstableloader" to bulk-load data into DSE cluster. It repeats the same process until all backup data in the backup location has been processed.
 
 This approach has pros an cons: 
 - The biggest pro is that it can tolerate DSE topology change, which means that the backup data can be restored to:
   1) the same cluster without any topology change; or
   2) the same cluster with some topology change; or
   3) a brand new cluster.
+
 - A major downside is that it is going to consume extra disk space (and extra disk and network I/O bandwith) in order to complete the whole process. For a keyspace with replication factor N (N > 1, normally 3 or above), it causes N times of the backup data to be ingested into the cluster. Although over the time, the C* compaction process will address the issue; but still, a lot of data has been transmitted over the network and processed in the system.
+
+Meanwhile, in certain situations, sstableloader utility may fail to work due to a known bug (which is to be fixed in the future DSE release). In these situations, some other methods to restore OpsCenter backup data are needed.
 
 
 # 2. Solution Overview and Usage Description
 
-In many cases, when there is **NO DSE cluster topology change**, a much faster approach (compared with approach we discussed above) would be to
+In many cases, when there is **NO DSE cluster topology change**, a much faster approach to restore OpsCenter backup data is to:
 1) Simply copy the backup data to its corresponding DSE node, under the right C* keyspace/table (file system) data directory
 2) Once the data is copied, either restart DSE node or run "nodetool refresh" command (no restart needed) to pick up the data-to-be-retored in DSE cluster.
 
-The second step of this approach is very straightforward. But when it comes to the first step of fetching corresponding DSE node backup data from a S3 bucket, there is NO ready-to-use tool that can help. The goal of this code repository is to provide such a utility that can help user to fast (multi-threaded) download DSE node specific backup items from S3 to a local directory. 
+The second step of this approach is very straightforward. But when it comes to the first step of fetching corresponding DSE node backup data (matching to a specific backup time, keyspace, and table) from the backup location, it is not that obvious and there is NO ready-to-use tool that can help. The goal of this code repository is to provide such a utility that can help user to fast (multi-threaded) restore DSE node specific backup data from the backup lcoation to a local directory on a DSE node. 
 
 ## 2.1. Usage Description
 
 **[Fast S3 Backup Data Download Utility]**
 
-1. Download the most recent release (version 2.0) of .jar file from [here](https://github.com/yabinmeng/opscs3restore/releases/download/2.0/DseAWSRestore-2.0-SNAPSHOT.jar)
+1. Download the most recent release (version 1.0) of .jar file from [here](https://github.com/yabinmeng/opscs3restore/releases/download/2.0/DseAWSRestore-2.0-SNAPSHOT.jar)
 
 2. Download the example configuration file (opsc_s3_config.properties) from [here](https://github.com/yabinmeng/opscs3restore/blob/master/src/main/resources/opsc_s3_config.properties)
 
