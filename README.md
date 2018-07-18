@@ -42,7 +42,7 @@ dse_contact_point: <DSE_cluster_contact_point>
 local_download_home: <DSE_node_local_download_home_directory>
 nfs_backup_home: <absolute_path_of_NFS_backup_location>
 ```
-**NOTE**: Please make sure use the absolute path for both the local download directory and the NFS backup location! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
+**NOTE**: Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
 
 3. Run the program, providing the proper java options and arguments.
 ```
