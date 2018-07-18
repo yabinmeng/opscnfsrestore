@@ -30,7 +30,7 @@ The second step of this approach is very straightforward. But when it comes to t
 <h3><b>Disclaimer: This utility ONLY works with the data that is backed up by OpsCenter backup service because it relies on the OpsCenter backup metadata to filter out the correct backup data to be restored! </b></h3>
 
 
-**[Fast Restore Utility of OpsCenter backup data]**
+In order to use this utility, please take the following steps: 
 
 1. Download the most recent release (version 1.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-1.0-SNAPSHOT.jar)
 
