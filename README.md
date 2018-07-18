@@ -71,10 +71,10 @@ The program needs a few Java options and parameters to work properly:
     <tbody>
         <tr> 
             <td> -l &lt; all | DC:"&lt;DC_name&gt;" | me[:"&lt;dsenode_host_id_string&gt;"] </td>
-            <td> List S3 backup items on the commandline output: <br/>
-                <li> all -- list the S3 backup items for all nodes in the cluster </li>
-                <li> DC:"&lt;DC_name&gt;" -- list the OpsCenter backup items of all nodes in a specified DC </li>
-                <li> me[:"&lt;dsenode_host_id_string&gt;"] -- list the OpsCenter backup item just for 
+            <td> List OpsCenter backup SSTables on the commandline output: <br/>
+                <li> all -- list OpsCenter backup SSTables for all nodes in the cluster </li>
+                <li> DC:"&lt;DC_name&gt;" -- list OpsCenter backup SSTables of all nodes in a specified DC </li>
+                <li> me[:"&lt;dsenode_host_id_string&gt;"] -- list OpsCenter backup SSTables just for 
                    <ul> 
                       <li> myself (the node that runs this program - IP matching) </li> 
                       <li> for any DSE node with its host ID provided as second parameter for this option. </li>
@@ -115,8 +115,7 @@ The program needs a few Java options and parameters to work properly:
          </tr>
          <tr>
            <td> -cls &lt;true|false&gt; </td>
-           <td> Whether to clear target download directory (default: false)
-                When not specified, all Cassandra tables under the specified keyspace will be downloaded.
+           <td> Whether to clear local download home directory before downloading (default: false)
            </td>
            <td> No </td>
          </tr>
@@ -132,7 +131,7 @@ The program needs a few Java options and parameters to work properly:
 </table>
 </br>
 
-## 2.2. Filter OpsCenter S3 backup SSTables by keyspace, table, and backup_time
+## 2.2. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
 This utility allows you to download OpsCenter backup SSTables further by the following categories:
 1. Cassandra keyspace name that the SSTables belong to ("-k" option, Mandtory)
@@ -158,7 +157,7 @@ This utility is designed to be multi-threaded by nature to download multiple SST
 
 **NOTE**: Currently this utility ONLY supports C* table with "mc" format (C* 3.0+/DSE 5.0/DSE5.1). It will be extended in the future to support other versions of formats.
 
-Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads tha can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter S3 backup items without actually downloading it.
+Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads tha can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter backup items without actually downloading it.
 
 When "-d <concurrent_downloading_thread_num>" option is provided, the backup SSTable files will be downloaded:
 * The "-cls <true|false>" option controls whether to clear the local download home directory before starting downloading!
