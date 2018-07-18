@@ -152,7 +152,7 @@ public class DseOpscNFSRestore {
                                          boolean noTargetDirStruct ) {
         assert (hostId != null);
 
-        System.out.format("List" +
+        System.out.format("\nList" +
             (download ? " and download" : "") +
             " OpsCenter NFS backup items for specified host (%s) ...\n", hostId);
 
@@ -211,9 +211,6 @@ public class DseOpscNFSRestore {
                 }
             }
         }
-
-
-        System.out.println();
 
         // Download SSTable S3 object items
         int numSstableBkupItems = 0;
@@ -314,6 +311,10 @@ public class DseOpscNFSRestore {
         executor.shutdown();
 
         while (!executor.isTerminated()) {
+        }
+
+        if (numSstableBkupItems == 0) {
+            System.out.println("  - Found no matching backup records for the specified conditions!.");
         }
 
         System.out.println("\n");
@@ -533,7 +534,7 @@ public class DseOpscNFSRestore {
                                      String tableName,
                                      ZonedDateTime opscBckupTimeGmt) {
 
-        System.out.format("List OpsCenter NFS backup items for DSE cluster (%s) [%s] ...\n",
+        System.out.format("\nList OpsCenter NFS backup items for DSE cluster (%s) [%s] ...\n",
                 dseClusterMetadata.getClusterName(),
                 ((tableName == null) || (tableName.isEmpty())) ?
                         "Keyspace - " + keyspaceName :
@@ -565,7 +566,7 @@ public class DseOpscNFSRestore {
 
         boolean dcOnly = ( (dcName != null) && !dcName.isEmpty() );
         if ( dcOnly ) {
-            System.out.format("List OpsCenter NFS backup items for specified DC (%s) of DSE cluster (%s) [%s] ...\n",
+            System.out.format("\nList OpsCenter NFS backup items for specified DC (%s) of DSE cluster (%s) [%s] ...\n",
                 dcName,
                 dseClusterMetadata.getClusterName(),
                 ((tableName == null) || (tableName.isEmpty())) ?
@@ -575,6 +576,8 @@ public class DseOpscNFSRestore {
         }
 
         for ( Host host : hosts ) {
+            int numSstableBkupItems = 0;
+
             String dc_name = host.getDatacenter();
             String rack_name = host.getRack();
             String host_id = host.getHostId().toString();
@@ -637,11 +640,16 @@ public class DseOpscNFSRestore {
                             }
 
                             if (filterKsTbl) {
+                                numSstableBkupItems++;
                                 System.out.println("  - " + opscObjName + " (size = " + NFS_BACKUP_FILELIST.get(nfsBkupItem)
                                         + " bytes) [keyspace: " + ks + "; table: " + tbl + "]");
                             }
                         }
                     }
+                }
+
+                if (numSstableBkupItems == 0) {
+                    System.out.println("  - Found no matching backup records for the specified conditions!.");
                 }
             }
 
