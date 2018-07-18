@@ -73,8 +73,8 @@ The program needs a few Java options and parameters to work properly:
             <td> -l &lt; all | DC:"&lt;DC_name&gt;" | me[:"&lt;dsenode_host_id_string&gt;"] </td>
             <td> List S3 backup items on the commandline output: <br/>
                 <li> all -- list the S3 backup items for all nodes in the cluster </li>
-                <li> DC:"&lt;DC_name&gt;" -- list the S3 backup items of all nodes in a specified DC </li>
-                <li> me[:"&lt;dsenode_host_id_string&gt;"] -- list the S3 bckup item just for 
+                <li> DC:"&lt;DC_name&gt;" -- list the OpsCenter backup items of all nodes in a specified DC </li>
+                <li> me[:"&lt;dsenode_host_id_string&gt;"] -- list the OpsCenter backup item just for 
                    <ul> 
                       <li> myself (the node that runs this program - IP matching) </li> 
                       <li> for any DSE node with its host ID provided as second parameter for this option. </li>
@@ -83,26 +83,26 @@ The program needs a few Java options and parameters to work properly:
              <td> Yes </td>
         </tr>
         <tr>
-            <td> -c &lt; opsc_s3_configure.properties_full_paht &gt; </td>
-            <td> The full file path of "opsc_s3_configure.properties" file. </td>
+            <td> -c &lt; opsc_nfs_configure.properties_full_paht &gt; </td>
+            <td> The full file path of "opsc_nfs_configure.properties" file. </td>
             <td> Yes </td>
         </tr>
         <tr>
             <td> -d &lt;max_concurrent_downloading_thread_num &gt; </td>
             <td> 
                 <li> <b>ONLY works with "-l me" option; which means "-l all" and "-l DC" options are just for display purpose</b> </li>
-                <li> &lt; concurrent_downloading_thread_num &gt; represents the number of threads (default 5 if not specified) that can concurrently download S3 backup sstable sets. </li>
+                <li> &lt; concurrent_downloading_thread_num &gt; represents the number of threads (default 5 if not specified) that can concurrently download OpsCenter backup sstable sets. </li>
            </td>
            <td> No </td>
         </tr>
         <tr>
            <td> -k &lt;keyspace_name&gt; </td>
-           <td> Download all OpsCenter S3 backup SSTables that belong to the specified keyspace. </td>
+           <td> Download all OpsCenter backup SSTables that belong to the specified keyspace. </td>
            <td> Yes </td>
         </tr>
         <tr>
            <td> -t &lt;table_name&gt; </td>
-           <td> <li> Download all OpsCenter S3 backup SSTables that belong to the specified table. </li> 
+           <td> <li> Download all OpsCenter backup SSTables that belong to the specified table. </li> 
                 <li> When not specified, all Cassandra tables under the specified keyspace will be downloaded. </li>
            </td>
            <td> No </td>
@@ -123,8 +123,8 @@ The program needs a few Java options and parameters to work properly:
          <tr>
            <td> -nds &lt;true|false&gt; </td>
            <td> Whether NOT to maitain backup location folder structure in the local download directory (default: false)
-             <li> <b>ONLY applicable when "-t (--table)" option is specified.</b> </li> 
-             <li> When NOT specified or NO "-t (--table)" option is specified, backup location folder structure is always maintained under the local download directory. This is to avoid possible SSTable name conflicts among different keyspaces and/or tables.</li>
+             <li> <b>ONLY applicable when "-t" option is specified.</b> </li> 
+             <li> When NOT specified or NO "-t" option is specified, backup location folder structure is always maintained under the local download directory. This is to avoid possible SSTable name conflicts among different keyspaces and/or tables.</li>
            </td>
            <td> No </td>
          </tr>
@@ -134,7 +134,7 @@ The program needs a few Java options and parameters to work properly:
 
 ## 2.2. Filter OpsCenter S3 backup SSTables by keyspace, table, and backup_time
 
-This utility allows you to download OpsCenter s3 backup SSTables further by the following categories:
+This utility allows you to download OpsCenter backup SSTables further by the following categories:
 1. Cassandra keyspace name that the SSTables belong to ("-k" option, Mandtory)
 2. Cassandra table name that the SSTables belong to ("-t" option, Optional)
 3. OpsCenter backup time ("-obt" option, Mandatory)  
@@ -162,7 +162,7 @@ Each thread is downloading one SSTable set. Multiple threads can download multip
 
 When "-d <concurrent_downloading_thread_num>" option is provided, the backup SSTable files will be downloaded:
 * The "-cls <true|false>" option controls whether to clear the local download home directory before starting downloading!
-* The "-nds <true|false>" option controls whether to maintain backup location folder structure underthe local download home directory. We maintain such structure by default in order to organized the recovered SSTables by keyspaces and tables. When this option has a "true" value (don't maintain the backup location folder structure), all restored SSTables are flattenly put directly under the local download home directory. <b>In order to avoid possible SSTable name conflict among different keyspaces and/or tables. "-nds <true|false>" option ONLY works when you specify "-t (--table)" option.</b>
+* The "-nds <true|false>" option controls whether to maintain backup location folder structure underthe local download home directory. We maintain such structure by default in order to organized the recovered SSTables by keyspaces and tables. When this option has a "true" value (don't maintain the backup location folder structure), all restored SSTables are flattenly put directly under the local download home directory. <b>In order to avoid possible SSTable name conflict among different keyspaces and/or tables. "-nds <true|false>" option ONLY works when you specify "-t" option.</b>
 
 An example is demonstrated below.
 
