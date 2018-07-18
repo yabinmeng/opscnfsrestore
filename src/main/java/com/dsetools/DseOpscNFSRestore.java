@@ -61,8 +61,8 @@ class NFSObjDownloadRunnable implements  Runnable {
 
         System.out.println("   - Starting thread " + threadID + " at: " + startTime.format(formatter));
 
-        int downloadedS3ObjNum = 0;
-        int failedS3ObjNum = 0;
+        int downloadedOpscObjNum = 0;
+        int failedOpscObjNum = 0;
 
         for ( int i = 0; i < opscObjNames.length; i++ ) {
             try {
@@ -85,7 +85,7 @@ class NFSObjDownloadRunnable implements  Runnable {
 
                 FileUtils.copyFile(nfsSrcFile, localFile);
 
-                downloadedS3ObjNum++;
+                downloadedOpscObjNum++;
 
                 System.out.format("     [Thread %d] download of \"%s\" completed \n", threadID,
                         opscObjNames[i] + "[keyspace: " + keyspaceNames[i] + "; table: " + tableNames[i] + "]");
@@ -96,14 +96,14 @@ class NFSObjDownloadRunnable implements  Runnable {
             catch ( IOException ioe) {
                 System.out.format("     [Thread %d] download of \"%s\" encounters IO Exception\n", threadID,
                     opscObjNames[i] + "[keyspace: " + keyspaceNames[i] + "; table: " + tableNames[i] + "]");
-                failedS3ObjNum++;
+                failedOpscObjNum++;
             }
             catch ( Exception ex ) {
                 ex.printStackTrace();
                 System.out.format("     [Thread %d] download of \"%s\" failed - unkown error\n", threadID,
                     opscObjNames[i] + "[keyspace: " + keyspaceNames[i] + "; table: " + tableNames[i] + "]");
                 ex.printStackTrace();
-                failedS3ObjNum++;
+                failedOpscObjNum++;
             }
         }
 
@@ -111,13 +111,13 @@ class NFSObjDownloadRunnable implements  Runnable {
 
         Duration duration = Duration.between(startTime, endTime);
 
-        System.out.format("   - Existing Thread %d at %s (duration: %d seconds): %d of %d s3 objects downloaded, %d failed.\n",
+        System.out.format("   - Existing Thread %d at %s (duration: %d seconds): %d of %d OpsCenter SSTable backup files downloaded, %d failed.\n",
             threadID,
             endTime.format(formatter),
             duration.getSeconds(),
-            downloadedS3ObjNum,
+            downloadedOpscObjNum,
             opscObjNames.length,
-            failedS3ObjNum
+            failedOpscObjNum
         );
     }
 }
@@ -129,7 +129,7 @@ public class DseOpscNFSRestore {
 
 
     /**
-     * List (and download) Opsc S3 backup objects for a specified host
+     * List (and download) Opsc backup objects for a specified host
      *
      * @param dseClusterMetadata
      * @param hostId
@@ -161,7 +161,7 @@ public class DseOpscNFSRestore {
         if (download) {
             assert (threadNum > 0);
 
-            // If non-existing, create local home directory to hold S3 download files
+            // If non-existing, create local home directory to hold download files
             try {
                 File file = new File(downloadHomeDir);
 
@@ -185,8 +185,8 @@ public class DseOpscNFSRestore {
 
         Map<String, String> opscUniquifierToKsTbls = new HashMap<String, String>();
 
-        DateTimeFormatter s3OpscObjTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-z");
-        String opscBckupTimeGmtStr = opscBckupTimeGmt.format(s3OpscObjTimeFormatter);
+        DateTimeFormatter opscObjTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-z");
+        String opscBckupTimeGmtStr = opscBckupTimeGmt.format(opscObjTimeFormatter);
 
 
         // First, check OpsCenter records matching the backup time
@@ -202,17 +202,17 @@ public class DseOpscNFSRestore {
 
                 // Only deal with the S3 objects that fall in the specified OpsCenter backup time range
                 if (opscBckupTimeGmtStr.equalsIgnoreCase(opscObjNameShortZeroSecond)) {
-                    // Process OpsCenter backup.json file to get the Keyspace/Table/S3_Identifier mapping
+                    // Process OpsCenter backup.json file to get the Keyspace/Table/Unique_Identifier mapping
                     if (opscObjName.contains("backup.json")) {
                         // After downloaded the backup.json file, process its content to get mapping between
-                        // S3 Uniquifier to Keyspace-Table.
+                        // Uniquifier to Keyspace-Table.
                         opscUniquifierToKsTbls = getOpscUniquifierToKsTblMapping(opscObjName);
                     }
                 }
             }
         }
 
-        // Download SSTable S3 object items
+        // Download OpsCenter backup SSTables
         int numSstableBkupItems = 0;
 
         //
@@ -351,7 +351,7 @@ public class DseOpscNFSRestore {
 
 
     /**
-     * List (and download) Opsc S3 backup objects for myself - the host that runs this program
+     * List (and download) Opsc backup objects for myself - the host that runs this program
      *
      * @param dseClusterMetadata
      * @param download
@@ -419,7 +419,7 @@ public class DseOpscNFSRestore {
 
 
     /**
-     * Get mapping from "S3_uniquifier" to "keyspace:table"
+     * Get mapping from "unique_identifier" to "keyspace:table"
      *
      * @param backupJsonFileName
      * @return
@@ -522,7 +522,7 @@ public class DseOpscNFSRestore {
 
 
     /**
-     * List Opsc S3 backup objects for all DSE cluster hosts
+     * List Opsc backup objects for all DSE cluster hosts
      *
      * @param dseClusterMetadata
      * @param keyspaceName
@@ -545,7 +545,7 @@ public class DseOpscNFSRestore {
     }
 
     /**
-     * List Opsc S3 backup objects for all hosts in a specified DC
+     * List Opsc backup objects for all hosts in a specified DC
      *
      * @param dseClusterMetadata
      * @param dcName
@@ -607,12 +607,12 @@ public class DseOpscNFSRestore {
                         String opscObjNameShortZeroSecond =
                                 opscObjName.substring(opscPrefixString.length(), opscPrefixString.length() + 16) + "-00-UTC";
 
-                        // Only deal with the S3 objects that fall in the specified OpsCenter backup time range
+                        // Only deal with the backup objects that fall in the specified OpsCenter backup time range
                         if (opscBckupTimeGmtStr.equalsIgnoreCase(opscObjNameShortZeroSecond)) {
-                            // Process OpsCenter backup.json file to get the Keyspace/Table/S3_Identifier mapping
+                            // Process OpsCenter backup.json file to get the Keyspace/Table/Unique_Identifier mapping
                             if (opscObjName.contains("backup.json")) {
                                 // After downloaded the backup.json file, process its content to get mapping between
-                                // S3 Uniquifier to Keyspace-Table.
+                                // Unique_identifier to Keyspace-Table.
                                 opscUniquifierToKsTbls = getOpscUniquifierToKsTblMapping(opscObjName);
                             }
                         }
@@ -673,12 +673,12 @@ public class DseOpscNFSRestore {
             DseOpscNFSRestoreUtils.CMD_OPTION_LIST_SHORT,
             DseOpscNFSRestoreUtils.CMD_OPTION_LIST_LONG,
             true,
-            "List OpsCenter S3 backup items (all | DC:\"<dc_name>\" | me[:\"<host_id_string>\"]).");
+            "List OpsCenter backup items (all | DC:\"<dc_name>\" | me[:\"<host_id_string>\"]).");
         Option downloadOption = new Option(
             DseOpscNFSRestoreUtils.CMD_OPTION_DOWNLOAD_SHORT,
             DseOpscNFSRestoreUtils.CMD_OPTION_DOWNLOAD_LONG,
             true,
-            "Download OpsCenter S3 bakcup items to local directory (only applies to \"list me\" case");
+            "Download OpsCenter bakcup items to local directory (only applies to \"list me\" case");
         Option fileOption = new Option(
             DseOpscNFSRestoreUtils.CMD_OPTION_CFG_SHORT,
             DseOpscNFSRestoreUtils.CMD_OPTION_CFG_LONG,
@@ -734,7 +734,7 @@ public class DseOpscNFSRestore {
             HelpFormatter formatter = new HelpFormatter();
 
             formatter.printHelp(errWriter, 150, "DseOpscS3Restore",
-                String.format("\nDseOpscS3Restore Options:"),
+                String.format("\nDseOpscNFSRestore Options:"),
                 options, 2, 1, "", true);
 
             System.out.println();
@@ -847,16 +847,16 @@ public class DseOpscNFSRestore {
         }
 
         // Download option ONLY works for "-l me" option! If "-d" option value is not specified, use the default value
-        boolean downloadS3Obj = false;
-        int downloadS3ObjThreadNum = DseOpscNFSRestoreUtils.DOWNLOAD_THREAD_POOL_SIZE;
+        boolean downloadOpscObj = false;
+        int downloadOpscObjThreadNum = DseOpscNFSRestoreUtils.DOWNLOAD_THREAD_POOL_SIZE;
 
         if ( cmd.hasOption(DseOpscNFSRestoreUtils.CMD_OPTION_DOWNLOAD_SHORT) ) {
-            downloadS3Obj = true;
+            downloadOpscObj = true;
 
             String dOptVal = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_DOWNLOAD_SHORT);
             if ( (dOptVal != null) && (!dOptVal.isEmpty()) ) {
                 try {
-                    downloadS3ObjThreadNum = Integer.parseInt(dOptVal);
+                    downloadOpscObjThreadNum = Integer.parseInt(dOptVal);
                 }
                 catch (NumberFormatException nfe) {
                     System.out.println("\nWARN: Incorrect \"-" + DseOpscNFSRestoreUtils.CMD_OPTION_DOWNLOAD_SHORT +
@@ -882,7 +882,7 @@ public class DseOpscNFSRestore {
         String obtOptOptValue = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_BACKUPTIME_SHORT);
 
         if ( (obtOptOptValue == null) || (obtOptOptValue.isEmpty()) ) {
-            System.out.println("\nERROR: Please specify proper OpsCenter S3 backup time string (M/d/yyyy h:mm a) as the \"-" +
+            System.out.println("\nERROR: Please specify proper OpsCenter backup time string (M/d/yyyy h:mm a) as the \"-" +
                 DseOpscNFSRestoreUtils.CMD_OPTION_BACKUPTIME_SHORT + "\" option value.");
             usageAndExit(-80);
         }
@@ -985,20 +985,20 @@ public class DseOpscNFSRestore {
         // dseCluster.connect();    /* NO NEED for acutal connection */
         Metadata dseClusterMetadata = dseCluster.getMetadata();
 
-        // List Opsc S3 backup items for all Dse Cluster hosts
+        // List OpsCenter backup SSTables for all Dse Cluster hosts
         if ( listCluster ) {
             listNFSObjtForCluster(dseClusterMetadata, keyspaceName, tableName, opscBackupTime_gmt);
         }
-        // List Opsc S3 backup items for all hosts in a specified DC of the Dse cluster
+        // List OpsCenter backup SSTables for all hosts in a specified DC of the Dse cluster
         else if ( listDC ) {
             listNFSObjForDC(dseClusterMetadata, dcNameToList, keyspaceName, tableName, opscBackupTime_gmt);
         }
-        // List (and download) Opsc S3 backup items for myself (the host that runs this program)
+        // List (and download) OpsCenter backup SSTables for myself (the host that runs this program)
         else if ( listMe ) {
             listDownloadNFSObjForMe(
                 dseClusterMetadata,
-                downloadS3Obj,
-                downloadS3ObjThreadNum,
+                downloadOpscObj,
+                downloadOpscObjThreadNum,
                 myHostID,
                 keyspaceName,
                 tableName,
