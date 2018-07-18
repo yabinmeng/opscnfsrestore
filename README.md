@@ -4,7 +4,7 @@ DataStax OpsCenter simplifies the task of backup and restore of data out of a DS
 
 **==Restore Challenge==**
 
-When we use OpsCener Service to restore backup data from another location like NFS or S3, behind the scene it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches matching backup data from the backup location and once it is done, it kicks of "sstableloader" to bulk-load data into DSE cluster. It repeats the same process until all backup data in the backup location has been processed.
+When we use OpsCener Service to restore backup data from another location like NFS or AWS S3, behind the scene it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches matching backup data from the backup location and once it is done, it kicks of "sstableloader" to bulk-load data into DSE cluster. It repeats the same process until all backup data in the backup location has been processed.
 
 This approach has pros an cons: 
 - The biggest pro is that it can tolerate DSE topology change, which means that the backup data can be restored to:
@@ -27,7 +27,10 @@ The second step of this approach is very straightforward. But when it comes to t
 
 ## 2.1. Usage Description
 
-**[Fast S3 Backup Data Download Utility]**
+<h3><b>Disclaimer: This utility ONLY works with the data that is backed up by OpsCenter backup service because it relies on the OpsCenter backup metadata to filter out the correct backup data to be restored! </b></h3>
+
+
+**[Fast Restore Utility of OpsCenter backup data]**
 
 1. Download the most recent release (version 1.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-1.0-SNAPSHOT.jar)
 
@@ -46,7 +49,7 @@ nfs_backup_home: <absolute_path_of_NFS_backup_location>
 java 
   -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
-  -c <opsc_s3_configure.properties_full_paht> 
+  -c <opsc_nfs_configure.properties_full_paht> 
   -d <concurrent_downloading_thread_num> 
   -k <keyspace_name> 
   [-t <table_name>] 
@@ -150,7 +153,7 @@ This utility allows you to download OpsCenter s3 backup SSTables further by the 
 If Cassandra table name is not specified, then all SSTables belonging to all tables under the specified keyspace will be downloaded.
 
 When specifiying OpsCenter backup time, it <b>MUST</b> be 
-- In format <b>M/d/yyyy h:m a</b> (an example: 7/9/2018 3:52 PM)
+- In format <b>M/d/yyyy h:mm a</b> (an example: 7/17/2018 10:02 PM)
 - Matching the OpsCenter backup time from OpsCenter WebUI, as highlighted in the example screenshot below:
   <img src="src/main/images/Screen%20Shot%202018-07-09%20at%2022.21.18.png" width="250px"/>
 
@@ -208,7 +211,7 @@ java
   -l all 
   -k testks 
   -t songs 
-  -obt "7/9/2018 3:52 PM"
+  -obt "7/17/2018 10:02 PM"
 ```
 
 2. List **Only** OpsCenter S3 backup items for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/9/2018 3:52 PM
@@ -218,7 +221,7 @@ java
   -c ./opsc_nfs_config.properties
   -l me
   -k testks1 
-  -obt "7/9/2018 3:52 PM"
+  -obt "7/17/2018 10:02 PM"
 ```
 
 3. List and **Download** (with concurren downloading thread number 5) OpsCenter S3 backup items for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/9/2018 3:52 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
@@ -229,7 +232,7 @@ java
   -l me:"10409aec-241c-4a79-a707-2d3e4951dbf6" 
   -d 5
   -k testks
-  -obt "7/9/2018 3:52 PM"
+  -obt "7/17/2018 10:02 PM"
   -cls true
 ```
 
