@@ -29,25 +29,22 @@ The second step of this approach is very straightforward. But when it comes to t
 
 **[Fast S3 Backup Data Download Utility]**
 
-1. Download the most recent release (version 1.0) of .jar file from [here](https://github.com/yabinmeng/opscs3restore/releases/download/2.0/DseAWSRestore-2.0-SNAPSHOT.jar)
+1. Download the most recent release (version 1.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-1.0-SNAPSHOT.jar)
 
-2. Download the example configuration file (opsc_s3_config.properties) from [here](https://github.com/yabinmeng/opscs3restore/blob/master/src/main/resources/opsc_s3_config.properties)
+2. Download the example configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties)
 
-   The example configuration file includes 4 items to configure. These items are quite straightforward and self-explanatory. Please update accordingly to your use case!
+   The example configuration file includes 3 items to configure. These items are quite straightforward and self-explanatory. Please update accordingly to your use case!
 ```
-dse_contact_point: 127.0.0.1
-local_download_home: ./s3_download_test
-opsc_s3_aws_region: us-east-1
-opsc_s3_bucket_name: ymeng-dse-s3-test
+dse_contact_point: <DSE_cluster_contact_point>
+local_download_home: <DSE_node_local_download_home_directory>
+nfs_backup_home: <absolute_path_of_NFS_backup_location>
 ```
-**NOTE**: Please make sure correct AWS region and S3 bucket name are entered in this conifguration file!
+**NOTE**: Please make sure use the absolute path for both the local download directory and the NFS backup location! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
 
 3. Run the program, providing the proper java options and arguments.
 ```
 java 
-  [-Daws.accessKeyId=<your_aws_access_key>] 
-  [-Daws.secretKey=<your_aws_secret_key>] 
-  -jar ./DseAWSRestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscS3Restore 
+  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
   -c <opsc_s3_configure.properties_full_paht> 
   -d <concurrent_downloading_thread_num> 
@@ -55,6 +52,7 @@ java
   [-t <table_name>] 
   -obt <opscenter_backup_time> 
   [-cls <true|false>]
+  [-nds <true|false>]
 ```
 
 The program needs a few Java options and parameters to work properly:
@@ -130,6 +128,14 @@ The program needs a few Java options and parameters to work properly:
            </td>
            <td> No </td>
          </tr>
+         <tr>
+           <td> -nds &lt;true|false&gt; </td>
+           <td> Whether NOT to maitain backup location folder structure in the local download directory (default: false)
+             <li> <b>ONLY applicable when "-t (--table)" option is specified.</b> </li> 
+             <li> When NOT specified or NO "-t (--table)" option is specified, backup location folder structure is always maintained under the local download directory. This is to avoid possible SSTable name conflicts among different keyspaces and/or tables.</li>
+           </td>
+           <td> No </td>
+         </tr>
     </tbody>
 </table>
 </br>
@@ -162,46 +168,26 @@ This utility is designed to be multi-threaded by nature to download multiple SST
 
 Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads tha can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter S3 backup items without actually downloading it.
 
-When "-d <concurrent_downloading_thread_num>" option is provided, the downloaded OpsCenter S3 backup SSTables are organized locally in the following structure:
+When "-d <concurrent_downloading_thread_num>" option is provided, the backup SSTable files will be downloaded:
+* The "-cls <true|false>" option controls whether to clear the local download home directory before starting downloading!
+* The "-nds <true|false>" option controls whether to maintain backup location folder structure underthe local download home directory. We maintain such structure by default in order to organized the recovered SSTables by keyspaces and tables. When this option has a "true" value (don't maintain the backup location folder structure), all restored SSTables are flattenly put directly under the local download home directory. <b>In order to avoid possible SSTable name conflict among different keyspaces and/or tables. "-nds <true|false>" option ONLY works when you specify "-t (--table)" option.</b>
 
-<text><b> &lt;local_download_home&gt;/snapshots/&lt;DSE_host_id&gt;/sstables/&lt;keyspace&gt;/&lt;table&gt;/mc-&lt;#&gt;-big-xxx.db </b></text>. 
-
-An example is demonstrated below:
+An example is demonstrated below.
 
 ```
-s3_download_test/
+<local_download_directory_home>/
 └── snapshots
-    └── 53db322b-7d09-421c-b189-0d5aa9dc0e44
-        ├── opscenter_adhoc_2018-07-09-15-52-06-UTC
-        │   ├── backup.json
-        │   ├── testks
-        │   │   └── schema.json
-        │   └── testks1
-        │       └── schema.json
+    └── 74c08172-9870-4dcc-9a7e-48bddfcc8572
         └── sstables
-            ├── testks
-            │   ├── singers
-            │   │   ├── mc-1-big-CompressionInfo.db
-            │   │   ├── mc-1-big-Data.db
-            │   │   ├── mc-1-big-Filter.db
-            │   │   ├── mc-1-big-Index.db
-            │   │   ├── mc-1-big-Statistics.db
-            │   │   └── mc-1-big-Summary.db
-            │   └── songs
-            │       ├── mc-2-big-CompressionInfo.db
-            │       ├── mc-2-big-Data.db
-            │       ├── mc-2-big-Filter.db
-            │       ├── mc-2-big-Index.db
-            │       ├── mc-2-big-Statistics.db
-            │       ├── mc-2-big-Summary.db
-            │       ├── mc-3-big-CompressionInfo.db
-            │       ├── mc-3-big-Data.db
-            │       ├── mc-3-big-Filter.db
-            │       ├── mc-3-big-Index.db
-            │       ├── mc-3-big-Statistics.db
-            │       └── mc-3-big-Summary.db
-            └── testks1
-                └── testtbl
+            └── testks
+                ├── songs
+                │   ├── mc-1-big-CompressionInfo.db
+                │   ├── mc-1-big-Data.db
+                │   ├── mc-1-big-Filter.db
+                │   ├── mc-1-big-Index.db
+                │   ├── mc-1-big-Statistics.db
+                │   └── mc-1-big-Summary.db
+                └── testbl
                     ├── mc-1-big-CompressionInfo.db
                     ├── mc-1-big-Data.db
                     ├── mc-1-big-Filter.db
@@ -210,17 +196,15 @@ s3_download_test/
                     └── mc-1-big-Summary.db
 ```
 
-The "-cls <true|false>" option controls whether to clear the local download directory before starting downloading!
+
 
 ## 2.4. Examples
 
 1. List **Only** OpsCenter S3 backup items for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/9/2018 3:52 PM
 ```
 java 
-  -Daws.accessKeyId=<aws_accesskey_id> 
-  -Daws.secretKey=<aws_secret_key> 
-  -jar ./DseAWSRestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscS3Restore 
-  -c ./opsc_s3_config.properties
+  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -c ./opsc_nfs_config.properties
   -l all 
   -k testks 
   -t songs 
@@ -230,22 +214,18 @@ java
 2. List **Only** OpsCenter S3 backup items for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/9/2018 3:52 PM
 ```
 java 
-  -Daws.accessKeyId=<aws_accesskey_id> 
-  -Daws.secretKey=<aws_secret_key> 
-  -jar ./DseAWSRestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscS3Restore 
-  -c ./opsc_s3_config.properties
+  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -c ./opsc_nfs_config.properties
   -l me
   -k testks1 
   -obt "7/9/2018 3:52 PM"
 ```
 
-3. List and **Download** (with concurren downloading thread number 5) OpsCenter S3 backup items for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/9/2018 3:52 PM. Local download directory is configured in "opsc_s3_config.properties" file and will be cleared before downloading.
+3. List and **Download** (with concurren downloading thread number 5) OpsCenter S3 backup items for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/9/2018 3:52 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
-  -Daws.accessKeyId=<aws_accesskey_id> 
-  -Daws.secretKey=<aws_secret_key> 
-  -jar ./DseAWSRestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscS3Restore 
-  -c ./opsc_s3_config.properties 
+  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -c ./opsc_nfs_config.properties 
   -l me:"10409aec-241c-4a79-a707-2d3e4951dbf6" 
   -d 5
   -k testks
@@ -255,54 +235,47 @@ java
 
 The utility command line output for example 3 above is something like below:
 ```
-List and download OpsCenter S3 backup items for specified host (10409aec-241c-4a79-a707-2d3e4951dbf6) ...
- - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/opscenter_adhoc_2018-07-09-15-52-06-UTC/backup.json (size = 4086 bytes)
-   ... download complete: 4086 of 4086 bytes transferred (100.00%)
- - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/opscenter_adhoc_2018-07-09-15-52-06-UTC/testks/schema.json (size = 2039 bytes)
-   ... download complete: 2039 of 2039 bytes transferred (100.00%)
- - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/opscenter_adhoc_2018-07-09-15-52-06-UTC/testks1/schema.json (size = 1187 bytes)
-   ... download complete: 1187 of 1187 bytes transferred (100.00%)
-
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-CompressionInfo.db (size = 43 bytes) [keyspace: testks; table: singers]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Data.db (size = 123 bytes) [keyspace: testks; table: singers]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Filter.db (size = 16 bytes) [keyspace: testks; table: singers]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Index.db (size = 60 bytes) [keyspace: testks; table: singers]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Statistics.db (size = 4611 bytes) [keyspace: testks; table: singers]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Summary.db (size = 92 bytes) [keyspace: testks; table: singers]
+List and download OpsCenter NFS backup items for specified host (74c08172-9870-4dcc-9a7e-48bddfcc8572) ...
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-CompressionInfo.db (size = 43 bytes) [keyspace: testks; table: songs]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Data.db (size = 87 bytes) [keyspace: testks; table: songs]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Filter.db (size = 16 bytes) [keyspace: testks; table: songs]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Index.db (size = 40 bytes) [keyspace: testks; table: songs]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Statistics.db (size = 4614 bytes) [keyspace: testks; table: songs]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Summary.db (size = 92 bytes) [keyspace: testks; table: songs]
   Creating thread with ID 0 (6).
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-CompressionInfo.db (size = 43 bytes) [keyspace: testks; table: songs]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Data.db (size = 261 bytes) [keyspace: testks; table: songs]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Filter.db (size = 24 bytes) [keyspace: testks; table: songs]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Index.db (size = 123 bytes) [keyspace: testks; table: songs]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Statistics.db (size = 4739 bytes) [keyspace: testks; table: songs]
-  - snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Summary.db (size = 92 bytes) [keyspace: testks; table: songs]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-CompressionInfo.db (size = 43 bytes) [keyspace: testks; table: testbl]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Data.db (size = 92 bytes) [keyspace: testks; table: testbl]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Filter.db (size = 16 bytes) [keyspace: testks; table: testbl]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Index.db (size = 24 bytes) [keyspace: testks; table: testbl]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Statistics.db (size = 4668 bytes) [keyspace: testks; table: testbl]
+  - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Summary.db (size = 56 bytes) [keyspace: testks; table: testbl]
   Creating thread with ID 1 (6).
-   - Starting thread 1 at: 2018-07-10 04:16:05
-   - Starting thread 0 at: 2018-07-10 04:16:05
-     [Thread 1] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-CompressionInfo.db[keyspace: testks; table: songs]" completed
-        >>> 43 of 43 bytes transferred (100.00%)
-     [Thread 0] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-CompressionInfo.db[keyspace: testks; table: singers]" completed
-        >>> 43 of 43 bytes transferred (100.00%)
-     [Thread 1] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Data.db[keyspace: testks; table: songs]" completed
-        >>> 261 of 261 bytes transferred (100.00%)
-     [Thread 0] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Data.db[keyspace: testks; table: singers]" completed
-     [Thread 1] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Filter.db[keyspace: testks; table: songs]" completed
-        >>> 123 of 123 bytes transferred (100.00%)
-        >>> 24 of 24 bytes transferred (100.00%)
-     [Thread 0] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Filter.db[keyspace: testks; table: singers]" completed
-        >>> 16 of 16 bytes transferred (100.00%)
-     [Thread 1] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Index.db[keyspace: testks; table: songs]" completed
-        >>> 123 of 123 bytes transferred (100.00%)
-     [Thread 0] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Index.db[keyspace: testks; table: singers]" completed
-        >>> 60 of 60 bytes transferred (100.00%)
-     [Thread 1] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Statistics.db[keyspace: testks; table: songs]" completed
-        >>> 4739 of 4739 bytes transferred (100.00%)
-     [Thread 0] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Statistics.db[keyspace: testks; table: singers]" completed
-        >>> 4611 of 4611 bytes transferred (100.00%)
-     [Thread 1] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/d33116f6603946089a7fd536e4e5aa1f-mc-1-big-Summary.db[keyspace: testks; table: songs]" completed
-        >>> 92 of 92 bytes transferred (100.00%)
-   - Existing Thread 1 at 2018-07-10 04:16:06 (duration: 1 seconds): 6 of 6 s3 objects downloaded, 0 failed.
-     [Thread 0] download of "snapshots/10409aec-241c-4a79-a707-2d3e4951dbf6/sstables/830be0b989458a7cc65257332109d5fc-mc-1-big-Summary.db[keyspace: testks; table: singers]" completed
-        >>> 92 of 92 bytes transferred (100.00%)
-   - Existing Thread 0 at 2018-07-10 04:16:06 (duration: 1 seconds): 6 of 6 s3 objects downloaded, 0 failed.
+   - Starting thread 0 at: 2018-07-18 17:28:04
+   - Starting thread 1 at: 2018-07-18 17:28:04
+     [Thread 0] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-CompressionInfo.db[keyspace: testks; table: songs]" completed 
+        >>> 43 of 43 bytes transferred.
+     [Thread 1] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-CompressionInfo.db[keyspace: testks; table: testbl]" completed 
+        >>> 43 of 43 bytes transferred.
+     [Thread 0] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Data.db[keyspace: testks; table: songs]" completed 
+        >>> 87 of 87 bytes transferred.
+     [Thread 1] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Data.db[keyspace: testks; table: testbl]" completed 
+        >>> 92 of 92 bytes transferred.
+     [Thread 0] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Filter.db[keyspace: testks; table: songs]" completed 
+        >>> 16 of 16 bytes transferred.
+     [Thread 1] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Filter.db[keyspace: testks; table: testbl]" completed 
+        >>> 16 of 16 bytes transferred.
+     [Thread 0] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Index.db[keyspace: testks; table: songs]" completed 
+        >>> 40 of 40 bytes transferred.
+     [Thread 1] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Index.db[keyspace: testks; table: testbl]" completed 
+        >>> 24 of 24 bytes transferred.
+     [Thread 0] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Statistics.db[keyspace: testks; table: songs]" completed 
+        >>> 4614 of 4614 bytes transferred.
+     [Thread 1] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Statistics.db[keyspace: testks; table: testbl]" completed 
+        >>> 4668 of 4668 bytes transferred.
+     [Thread 0] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-Summary.db[keyspace: testks; table: songs]" completed 
+        >>> 92 of 92 bytes transferred.
+   - Existing Thread 0 at 2018-07-18 17:28:04 (duration: 0 seconds): 6 of 6 s3 objects downloaded, 0 failed.
+     [Thread 1] download of "/Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/e6294485f35f23c22348440fc8f79cdb-mc-1-big-Summary.db[keyspace: testks; table: testbl]" completed 
+        >>> 56 of 56 bytes transferred.
+   - Existing Thread 1 at 2018-07-18 17:28:04 (duration: 0 seconds): 6 of 6 s3 objects downloaded, 0 failed.
 ```
