@@ -4,15 +4,15 @@ DataStax OpsCenter simplifies the task of backup and restore of data out of a DS
 
 **==Restore Challenge==**
 
-When we use OpsCener Service to restore backup data from another location like NFS or AWS S3, behind the scene it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches matching backup data from the backup location and once it is done, it kicks of "sstableloader" to bulk-load data into DSE cluster. It repeats the same process until all backup data in the backup location has been processed.
+When we use OpsCener Service to restore backup data from another location like NFS or AWS S3, behind the scenes it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches matching backup data from the backup location and once it is done, it kicks of "sstableloader" to bulk-load data into DSE cluster. It repeats the same process until all backup data in the backup location has been processed.
 
-This approach has pros an cons: 
+This approach has pros and cons: 
 - The biggest pro is that it can tolerate DSE topology change, which means that the backup data can be restored to:
   1) the same cluster without any topology change; or
   2) the same cluster with some topology change; or
   3) a brand new cluster.
 
-- A major downside is that it is going to consume extra disk space (and extra disk and network I/O bandwith) in order to complete the whole process. For a keyspace with replication factor N (N > 1, normally 3 or above), it causes N times of the backup data to be ingested into the cluster. Although over the time, the C* compaction process will address the issue; but still, a lot of data has been transmitted over the network and processed in the system.
+- A major downside is that it is going to consume extra disk space (and extra disk and network I/O bandwith) in order to complete the whole process. For a keyspace with replication factor N (N > 1, normally 3 or above), it causes N times of the backup data to be ingested into the cluster. Although over time, the C* compaction process will address the issue; but still, a lot of data has been transmitted over the network and processed in the system.
 
 Meanwhile, in certain situations, sstableloader utility may fail to work due to a known bug (which is to be fixed in the future DSE release). In these situations, some other methods to restore OpsCenter backup data are needed.
 
@@ -49,7 +49,7 @@ nfs_backup_home: <absolute_path_of_NFS_backup_location>
 java 
   -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
-  -c <opsc_nfs_configure.properties_full_paht> 
+  -c <opsc_nfs_configure.properties_full_path> 
   -d <concurrent_downloading_thread_num> 
   -k <keyspace_name> 
   [-t <table_name>] 
