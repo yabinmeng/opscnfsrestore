@@ -109,7 +109,7 @@ The program needs a few Java options and parameters to work properly:
          </tr>
          <tr>
            <td> -obt &lt;opsCenter_backup_time&gt; </td>
-            <td> OpsCenter backup time (must be in format <b>M/d/yyyy h:m a</b>) </li>
+            <td> OpsCenter backup time (must be in format <b>M/d/yyyy h:mm a</b>) </li>
            </td>
            <td> Yes </td>
          </tr>
