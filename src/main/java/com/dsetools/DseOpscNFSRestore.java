@@ -434,10 +434,10 @@ public class DseOpscNFSRestore {
             JSONObject jsonObject = (JSONObject) jsonParser.parse(new FileReader(backupJsonFileName));
             JSONArray jsonItemArr = (JSONArray)jsonObject.get(DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR);
 
-            Iterator<JSONObject> iterator = jsonItemArr.iterator();
+            Iterator iterator = jsonItemArr.iterator();
 
             while (iterator.hasNext()) {
-                String jsonItemContent = (String) iterator.next().toJSONString();
+                String jsonItemContent = (String) ((JSONObject)iterator.next()).toJSONString();
                 jsonItemContent = jsonItemContent.substring(1, jsonItemContent.length() -1 );
 
                 String[] keyValuePairs = jsonItemContent.split(",");
