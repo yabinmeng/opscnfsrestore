@@ -131,7 +131,6 @@ public class DseOpscNFSRestore {
     /**
      * List (and download) Opsc backup objects for a specified host
      *
-     * @param dseClusterMetadata
      * @param hostId
      * @param download
      * @param threadNum
@@ -141,15 +140,14 @@ public class DseOpscNFSRestore {
      * @param clearTargetDownDir
      * @param noTargetDirStruct
      */
-    static void listDownloadNFSObjForHost(Metadata dseClusterMetadata,
-                                         String hostId,
-                                         boolean download,
-                                         int threadNum,
-                                         String keyspaceName,
-                                         String tableName,
-                                         ZonedDateTime opscBckupTimeGmt,
-                                         boolean clearTargetDownDir,
-                                         boolean noTargetDirStruct ) {
+    static void listDownloadNFSObjForHost(String hostId,
+                                          boolean download,
+                                          int threadNum,
+                                          String keyspaceName,
+                                          String tableName,
+                                          ZonedDateTime opscBckupTimeGmt,
+                                          boolean clearTargetDownDir,
+                                          boolean noTargetDirStruct ) {
         assert (hostId != null);
 
         System.out.format("\nList" +
@@ -404,7 +402,6 @@ public class DseOpscNFSRestore {
             //System.out.println("locahost: " + myHostId);
 
             listDownloadNFSObjForHost(
-                dseClusterMetadata,
                 myHostId,
                 download,
                 threadNum,
@@ -977,13 +974,18 @@ public class DseOpscNFSRestore {
         QueryOptions queryOptions = new QueryOptions();
         queryOptions.setConsistencyLevel(ConsistencyLevel.LOCAL_QUORUM);
 
-        DseCluster dseCluster = DseCluster.builder()
-            .addContactPoint(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_CONTACT_POINT))
-            .withQueryOptions(queryOptions)
-            .build();
 
         // dseCluster.connect();    /* NO NEED for acutal connection */
-        Metadata dseClusterMetadata = dseCluster.getMetadata();
+        Metadata dseClusterMetadata = null;
+
+        // Do NOT check cluster metadata for "-l me:<dse_host_id>" option
+        if (listMe && ((myHostID == null) || myHostID.isEmpty()) ) {
+            DseCluster dseCluster = DseCluster.builder()
+                    .addContactPoint(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_CONTACT_POINT))
+                    .withQueryOptions(queryOptions)
+                    .build();
+            dseCluster.getMetadata();
+        }
 
         // List OpsCenter backup SSTables for all Dse Cluster hosts
         if ( listCluster ) {
