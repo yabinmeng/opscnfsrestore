@@ -4,6 +4,7 @@ import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.QueryOptions;
+import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.dse.DseCluster;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
@@ -769,7 +770,7 @@ public class DseOpscNFSRestore {
         }
         catch (ParseException e) {
             System.err.format("\nERROR: Failure parsing argument inputs: %s.\n", e.getMessage());
-            usageAndExit(-10);
+            usageAndExit(10);
         }
 
         // Print help message
@@ -782,7 +783,7 @@ public class DseOpscNFSRestore {
         if ( (cfgFilePath == null) || cfgFilePath.isEmpty() ) {
             System.err.println("\nERROR: Please specify a valid configuration file path as the \"-" +
                 DseOpscNFSRestoreUtils.CMD_OPTION_CFG_SHORT + " option value.\n");
-            usageAndExit(-20);
+            usageAndExit(20);
         }
 
         // "-l" option (ALL | DC:"<DC_Name>" | me[:"<C*_node_host_id>" is a must!
@@ -800,7 +801,7 @@ public class DseOpscNFSRestore {
                 DseOpscNFSRestoreUtils.CMD_OPTION_LIST_ALL + " | " +
                 DseOpscNFSRestoreUtils.CMD_OPTION_LIST_DC + ":\"<DC_Name>\" | " +
                 DseOpscNFSRestoreUtils.CMD_OPTION_LIST_ME + "[:\"<host_id>\"].\n");
-            usageAndExit(-30);
+            usageAndExit(30);
         }
 
         if ( lOptVal.equalsIgnoreCase(DseOpscNFSRestoreUtils.CMD_OPTION_LIST_ALL) ) {
@@ -814,7 +815,7 @@ public class DseOpscNFSRestore {
                 System.out.println("\nERROR: Please specify proper value for \"-" +
                     DseOpscNFSRestoreUtils.CMD_OPTION_LIST_SHORT + " " + DseOpscNFSRestoreUtils.CMD_OPTION_LIST_DC +
                     "\" option -- DC:\"<DC_Name>\".\n");
-                usageAndExit(-40);
+                usageAndExit(40);
             }
             else {
                 dcNameToList = strSplits[1];
@@ -828,7 +829,7 @@ public class DseOpscNFSRestore {
                 System.out.println("\nERROR: Please specify proper value for \"-" +
                     DseOpscNFSRestoreUtils.CMD_OPTION_LIST_SHORT + " " + DseOpscNFSRestoreUtils.CMD_OPTION_LIST_ME +
                     "\" option -- [:\"<specified_host_id_string>\"].\n");
-                usageAndExit(-50);
+                usageAndExit(50);
             }
             else if ( lOptVal.contains(":") ) {
                 myHostID = lOptVal.split(":")[1];
@@ -840,7 +841,7 @@ public class DseOpscNFSRestore {
                 DseOpscNFSRestoreUtils.CMD_OPTION_LIST_ALL + " | " +
                 DseOpscNFSRestoreUtils.CMD_OPTION_LIST_DC + ":\"<DC_Name>\" | " +
                 DseOpscNFSRestoreUtils.CMD_OPTION_LIST_ME + "[:\"<host_id>\"].\n");
-            usageAndExit(-60);
+            usageAndExit(60);
         }
 
         // Download option ONLY works for "-l me" option! If "-d" option value is not specified, use the default value
@@ -868,7 +869,7 @@ public class DseOpscNFSRestore {
         if ( (keyspaceName == null) || keyspaceName.isEmpty() ) {
             System.out.println("\nERROR: Please specify proper keypsace name as the \"-" +
                 DseOpscNFSRestoreUtils.CMD_OPTION_KEYSPACE_SHORT + "\" option value.\n");
-            usageAndExit(-70);
+            usageAndExit(70);
         }
 
         // "-t" option (Table name) is optional. If not specified, all Tables of the specified keyspaces will be processed.
@@ -881,7 +882,7 @@ public class DseOpscNFSRestore {
         if ( (obtOptOptValue == null) || (obtOptOptValue.isEmpty()) ) {
             System.out.println("\nERROR: Please specify proper OpsCenter backup time string (M/d/yyyy h:mm a) as the \"-" +
                 DseOpscNFSRestoreUtils.CMD_OPTION_BACKUPTIME_SHORT + "\" option value.");
-            usageAndExit(-80);
+            usageAndExit(80);
         }
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("M/d/yyyy h:mm a");
@@ -897,7 +898,7 @@ public class DseOpscNFSRestore {
 
             System.out.println("\nERROR: Please specify correct time string format (M/d/yyyy h:mm a) for \"-" +
                 DseOpscNFSRestoreUtils.CMD_OPTION_BACKUPTIME_SHORT + "\" option.");
-            usageAndExit(-90);
+            usageAndExit(90);
         }
 
         // "-cls" option is optional
@@ -943,7 +944,7 @@ public class DseOpscNFSRestore {
 
         CONFIGPROP = DseOpscNFSRestoreUtils.LoadConfigFile(cfgFilePath);
         if (CONFIGPROP == null) {
-            System.exit(-100);
+            System.exit(100);
         }
 
         NFS_BACKUP_FILELIST = listFilesForDir(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR));
@@ -963,7 +964,7 @@ public class DseOpscNFSRestore {
         Path nfsBackupHomePath = Paths.get(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR));
         if ( !Files.isDirectory(nfsBackupHomePath) || Files.notExists(nfsBackupHomePath) ) {
             System.out.println("\nERROR: Specified NFS OpsCenter backup home directory (in the config file) is not correct!");
-            usageAndExit(-110);
+            usageAndExit(110);
         }
 
 
@@ -979,12 +980,26 @@ public class DseOpscNFSRestore {
         Metadata dseClusterMetadata = null;
 
         // Do NOT check cluster metadata for "-l me:<dse_host_id>" option
-        if (listMe && ((myHostID == null) || myHostID.isEmpty()) ) {
-            DseCluster dseCluster = DseCluster.builder()
-                    .addContactPoint(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_CONTACT_POINT))
-                    .withQueryOptions(queryOptions)
-                    .build();
-            dseCluster.getMetadata();
+        boolean checkDseMetadata = listCluster || listDC || (listMe && ((myHostID == null) || myHostID.isEmpty()) );
+        if (checkDseMetadata) {
+
+            try {
+                DseCluster dseCluster = DseCluster.builder()
+                        .addContactPoint(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_CONTACT_POINT))
+                        .withQueryOptions(queryOptions)
+                        .build();
+                dseCluster.getMetadata();
+            }
+            catch (NoHostAvailableException nhae) {
+                System.out.println("\nERROR: Failed to check DSE cluster metadata. " +
+                        "Please check DSE cluster status and/or connection requirements (e.g. SSL/TLS, username/password)!");
+                System.exit(120);
+            }
+            catch (Exception e) {
+                System.out.println("\nERROR: Unknown error when checking DSE cluster metadata!");
+                e.printStackTrace();;
+                System.exit(125);
+            }
         }
 
         // List OpsCenter backup SSTables for all Dse Cluster hosts
