@@ -4,15 +4,15 @@ DataStax OpsCenter simplifies the task of backup and restore of data out of a DS
 
 **==Restore Challenge==**
 
-When we use OpsCener Service to restore backup data from another location like NFS or AWS S3, behind the scene it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches matching backup data from the backup location and once it is done, it kicks of "sstableloader" to bulk-load data into DSE cluster. It repeats the same process until all backup data in the backup location has been processed.
+When we use OpsCener Service to restore backup data from another location like NFS or AWS S3, behind the scenes it utilizes the traditional Cassandra "sstableloader" utility. Simply speaking, OpsCenter server, through datatax-agent on each DSE node, fetches matching backup data from the backup location and once it is done, it kicks of "sstableloader" to bulk-load data into DSE cluster. It repeats the same process until all backup data in the backup location has been processed.
 
-This approach has pros an cons: 
+This approach has pros and cons: 
 - The biggest pro is that it can tolerate DSE topology change, which means that the backup data can be restored to:
   1) the same cluster without any topology change; or
   2) the same cluster with some topology change; or
   3) a brand new cluster.
 
-- A major downside is that it is going to consume extra disk space (and extra disk and network I/O bandwith) in order to complete the whole process. For a keyspace with replication factor N (N > 1, normally 3 or above), it causes N times of the backup data to be ingested into the cluster. Although over the time, the C* compaction process will address the issue; but still, a lot of data has been transmitted over the network and processed in the system.
+- A major downside is that it is going to consume extra disk space (and extra disk and network I/O bandwith) in order to complete the whole process. For a keyspace with replication factor N (N > 1, normally 3 or above), it causes N times of the backup data to be ingested into the cluster. Although over time, the C* compaction process will address the issue; but still, a lot of data has been transmitted over the network and processed in the system.
 
 Meanwhile, in certain situations, sstableloader utility may fail to work due to a known bug (which is to be fixed in the future DSE release). In these situations, some other methods to restore OpsCenter backup data are needed.
 
@@ -49,7 +49,7 @@ nfs_backup_home: <absolute_path_of_NFS_backup_location>
 java 
   -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
-  -c <opsc_nfs_configure.properties_full_paht> 
+  -c <opsc_nfs_configure.properties_full_path> 
   -d <concurrent_downloading_thread_num> 
   -k <keyspace_name> 
   [-t <table_name>] 
@@ -109,7 +109,7 @@ The program needs a few Java options and parameters to work properly:
          </tr>
          <tr>
            <td> -obt &lt;opsCenter_backup_time&gt; </td>
-            <td> OpsCenter backup time (must be in format <b>M/d/yyyy h:m a</b>) </li>
+            <td> OpsCenter backup time (must be in format <b>M/d/yyyy h:mm a</b>) </li>
            </td>
            <td> Yes </td>
          </tr>
@@ -134,7 +134,7 @@ The program needs a few Java options and parameters to work properly:
 ## 2.2. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
 This utility allows you to download OpsCenter backup SSTables further by the following categories:
-1. Cassandra keyspace name that the SSTables belong to ("-k" option, Mandtory)
+1. Cassandra keyspace name that the SSTables belong to ("-k" option, Mandatory)
 2. Cassandra table name that the SSTables belong to ("-t" option, Optional)
 3. OpsCenter backup time ("-obt" option, Mandatory)  
 
@@ -157,11 +157,11 @@ This utility is designed to be multi-threaded by nature to download multiple SST
 
 **NOTE**: Currently this utility ONLY supports C* table with "mc" format (C* 3.0+/DSE 5.0/DSE5.1). It will be extended in the future to support other versions of formats.
 
-Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads tha can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter backup SSTables without actually downloading it.
+Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads that can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter backup SSTables without actually downloading it.
 
 When "-d <concurrent_downloading_thread_num>" option is provided, the backup SSTables files will be downloaded (from NFS backup location) to the spcified local download home directory. The following 2 options determine how the local download home directory is organized:
 * The "-cls <true|false>" option controls whether to clear the local download home directory before starting downloading!
-* The "-nds <true|false>" option controls whether to maintain backup location folder structure underthe local download home directory. We maintain such structure by default in order to organized the recovered SSTables by keyspaces and tables. When this option has a "true" value (don't maintain the backup location folder structure), all restored SSTables are flattenly put directly under the local download home directory. <b>In order to avoid possible SSTable name conflict among different keyspaces and/or tables. "-nds <true|false>" option ONLY works when you specify "-t" option.</b>
+* The "-nds <true|false>" option controls whether to maintain backup location folder structure underthe local download home directory. We maintain such structure by default in order to organize the recovered SSTables by keyspaces and tables. When this option has a "true" value (don't maintain the backup location folder structure), all restored SSTables are flattened out and put directly under the local download home directory. <b>In order to avoid possible SSTable name conflict among different keyspaces and/or tables. "-nds <true|false>" option ONLY works when you specify "-t" option.</b>
 
 An example is demonstrated below.
 
@@ -212,7 +212,7 @@ java
   -obt "7/17/2018 10:02 PM"
 ```
 
-3. List and **Download** (with concurren downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
+3. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
   -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
