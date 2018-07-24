@@ -233,7 +233,22 @@ java
   -obt "7/17/2018 10:02 PM"
 ```
 
-2. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
+2. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM. DSE cluster has client-to-node SSL/TLS encryption enabled and requires user authenticatiion
+```
+java 
+  -Djavax.net.ssl.trustStore=<path_to_client_truststore>
+  -Djavax.net.ssl.trustStorePassword=<password_to_client_truststore>
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -c ./opsc_nfs_config.properties
+  -l all 
+  -k testks 
+  -t songs 
+  -obt "7/17/2018 10:02 PM"
+  -u <cassandra_user_name>
+  -p <cassandra_user_password>
+```
+
+3. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
   -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
@@ -243,7 +258,7 @@ java
   -obt "7/17/2018 10:02 PM"
 ```
 
-3. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
+4. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
   -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
@@ -255,7 +270,7 @@ java
   -cls true
 ```
 
-The utility command line output for example 3 above is something like below:
+The utility command line output for example 4 above is something like below:
 ```
 List and download OpsCenter NFS backup items for specified host (74c08172-9870-4dcc-9a7e-48bddfcc8572) ...
   - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-CompressionInfo.db (size = 43 bytes) [keyspace: testks; table: songs]
