@@ -49,6 +49,8 @@ user_auth: <true | false>
 3. Run the program, providing the proper java options and arguments.
 ```
 java 
+  [-Djavax.net.ssl.trustStore=<client_truststore>] 
+  [-Djavax.net.ssl.trustStorePassword=<client_truststore_password>]
   -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
   -c <opsc_nfs_configure.properties_full_path> 
@@ -58,6 +60,8 @@ java
   -obt <opscenter_backup_time> 
   [-cls <true|false>]
   [-nds <true|false>]
+  [-u <cassandra_user_name>]
+  [-p <cassandra_user_password>]
 ```
 
 The program needs a few Java options and parameters to work properly:
@@ -71,6 +75,16 @@ The program needs a few Java options and parameters to work properly:
         </tr>
     </thead>
     <tbody>
+        <tr>           
+            <td> -Djavax.net.ssl.trustStore </td>
+            <td> SSL/TLS client truststore file path (when DSE client-to-node SSL/TLS is enabled) </td>
+            <td> No </td>
+        </tr>
+        <tr>           
+            <td> -Djavax.net.ssl.trustStorePassword </td>
+            <td> SSL/TLS client truststore password (when DSE client-to-node SSL/TLS is enabled) </td>
+            <td> No </td>
+        </tr>
         <tr> 
             <td> -l &lt; all | DC:"&lt;DC_name&gt;" | me[:"&lt;dsenode_host_id_string&gt;"] </td>
             <td> List OpsCenter backup SSTables on the commandline output: <br/>
@@ -94,51 +108,51 @@ The program needs a few Java options and parameters to work properly:
             <td> 
                 <li> <b>ONLY works with "-l me" option; which means "-l all" and "-l DC" options are just for display purpose</b> </li>
                 <li> &lt; concurrent_downloading_thread_num &gt; represents the number of threads (default 5 if not specified) that can concurrently download OpsCenter backup sstable sets. </li>
-           </td>
-           <td> No </td>
+            </td>
+            <td> No </td>
         </tr>
         <tr>
-           <td> -k &lt;keyspace_name&gt; </td>
-           <td> Download all OpsCenter backup SSTables that belong to the specified keyspace. </td>
-           <td> Yes </td>
+            <td> -k &lt;keyspace_name&gt; </td>
+            <td> Download all OpsCenter backup SSTables that belong to the specified keyspace. </td>
+            <td> Yes </td>
         </tr>
         <tr>
-           <td> -t &lt;table_name&gt; </td>
-           <td> <li> Download all OpsCenter backup SSTables that belong to the specified table. </li> 
+            <td> -t &lt;table_name&gt; </td>
+            <td> <li> Download all OpsCenter backup SSTables that belong to the specified table. </li> 
                 <li> When not specified, all Cassandra tables under the specified keyspace will be downloaded. </li>
-           </td>
-           <td> No </td>
-         </tr>
-         <tr>
-           <td> -obt &lt;opsCenter_backup_time&gt; </td>
+            </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -obt &lt;opsCenter_backup_time&gt; </td>
             <td> OpsCenter backup time (must be in format <b>M/d/yyyy h:mm a</b>) </li>
-           </td>
-           <td> Yes </td>
-         </tr>
-         <tr>
-           <td> -cls &lt;true|false&gt; </td>
-           <td> Whether to clear local download home directory before downloading (default: false)
-           </td>
-           <td> No </td>
-         </tr>
-         <tr>
-           <td> -nds &lt;true|false&gt; </td>
-           <td> Whether NOT to maitain backup location folder structure in the local download directory (default: false)
-             <li> <b>ONLY applicable when "-t" option is specified.</b> </li> 
-             <li> When NOT specified or NO "-t" option is specified, backup location folder structure is always maintained under the local download directory. This is to avoid possible SSTable name conflicts among different keyspaces and/or tables.</li>
-           </td>
-           <td> No </td>
-         </tr>
-         <tr>
-           <td> -u &lt;cassandra_user_name&gt; </td>
-           <td> Cassandra user name (when DSE authentication is enabled) </td>
-           <td> No </td>
-         </tr>
-         <tr>
-           <td> -p &lt;cassandra_user_password&gt; </td>
-           <td> Cassandra user name (when DSE authentication is enabled) </td>
-           <td> No </td>
-         </tr>
+            </td>
+            <td> Yes </td>
+        </tr>
+        <tr>
+            <td> -cls &lt;true|false&gt; </td>
+            <td> Whether to clear local download home directory before downloading (default: false)
+            </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -nds &lt;true|false&gt; </td>
+            <td> Whether NOT to maitain backup location folder structure in the local download directory (default: false)
+                <li> <b>ONLY applicable when "-t" option is specified.</b> </li> 
+                <li> When NOT specified or NO "-t" option is specified, backup location folder structure is always maintained under the local download directory. This is to avoid possible SSTable name conflicts among different keyspaces and/or tables.</li>
+            </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -u &lt;cassandra_user_name&gt; </td>
+            <td> Cassandra user name (when DSE authentication is enabled) </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -p &lt;cassandra_user_password&gt; </td>
+            <td> Cassandra user name (when DSE authentication is enabled) </td>
+            <td> No </td>
+        </tr>
     </tbody>
 </table>
 </br>
