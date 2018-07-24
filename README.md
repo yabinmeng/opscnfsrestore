@@ -32,7 +32,7 @@ The second step of this approach is very straightforward. But when it comes to t
 
 In order to use this utility, please take the following steps: 
 
-1. Download the most recent release (version 1.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-1.0-SNAPSHOT.jar)
+1. Download the most recent release (version 2.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-2.0-SNAPSHOT.jar)
 
 2. Download the example configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties)
 
@@ -41,13 +41,15 @@ In order to use this utility, please take the following steps:
 dse_contact_point: <DSE_cluster_contact_point>
 local_download_home: <DSE_node_local_download_home_directory>
 nfs_backup_home: <absolute_path_of_NFS_backup_location>
+use_ssl: <true | false>
+user_auth: <true | false>
 ```
 **NOTE**: Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
 
 3. Run the program, providing the proper java options and arguments.
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
   -c <opsc_nfs_configure.properties_full_path> 
   -d <concurrent_downloading_thread_num> 
@@ -127,6 +129,16 @@ The program needs a few Java options and parameters to work properly:
            </td>
            <td> No </td>
          </tr>
+         <tr>
+           <td> -u &lt;cassandra_user_name&gt; </td>
+           <td> Cassandra user name (when DSE authentication is enabled) </td>
+           <td> No </td>
+         </tr>
+         <tr>
+           <td> -p &lt;cassandra_user_password&gt; </td>
+           <td> Cassandra user name (when DSE authentication is enabled) </td>
+           <td> No </td>
+         </tr>
     </tbody>
 </table>
 </br>
@@ -194,7 +206,7 @@ An example is demonstrated below.
 1. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties
   -l all 
   -k testks 
@@ -205,7 +217,7 @@ java
 2. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -c ./opsc_nfs_config.properties
   -l me
   -k testks1 
@@ -215,7 +227,7 @@ java
 3. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties 
   -l me:"74c08172-9870-4dcc-9a7e-48bddfcc8572" 
   -d 5
