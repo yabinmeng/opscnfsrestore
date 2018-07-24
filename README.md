@@ -32,22 +32,16 @@ The second step of this approach is very straightforward. But when it comes to t
 
 In order to use this utility, please take the following steps: 
 
-1. Download the most recent release (version 1.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-1.0-SNAPSHOT.jar)
+1. Download the most recent release (version 2.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/2.0/opscnfsrestore-2.0-SNAPSHOT.jar)
 
-2. Download the example configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties)
-
-   The example configuration file includes 3 items to configure. These items are quite straightforward and self-explanatory. Please update accordingly to your use case!
-```
-dse_contact_point: <DSE_cluster_contact_point>
-local_download_home: <DSE_node_local_download_home_directory>
-nfs_backup_home: <absolute_path_of_NFS_backup_location>
-```
-**NOTE**: Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
+2. Download the (example) utility configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties) and make corresponding changes to your own use case.
 
 3. Run the program, providing the proper java options and arguments.
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  [-Djavax.net.ssl.trustStore=<client_truststore>] 
+  [-Djavax.net.ssl.trustStorePassword=<client_truststore_password>]
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
   -c <opsc_nfs_configure.properties_full_path> 
   -d <concurrent_downloading_thread_num> 
@@ -56,6 +50,8 @@ java
   -obt <opscenter_backup_time> 
   [-cls <true|false>]
   [-nds <true|false>]
+  [-u <cassandra_user_name>]
+  [-p <cassandra_user_password>]
 ```
 
 The program needs a few Java options and parameters to work properly:
@@ -69,6 +65,16 @@ The program needs a few Java options and parameters to work properly:
         </tr>
     </thead>
     <tbody>
+        <tr>           
+            <td> -Djavax.net.ssl.trustStore </td>
+            <td> SSL/TLS client truststore file path (when DSE client-to-node SSL/TLS is enabled) </td>
+            <td> No </td>
+        </tr>
+        <tr>           
+            <td> -Djavax.net.ssl.trustStorePassword </td>
+            <td> SSL/TLS client truststore password (when DSE client-to-node SSL/TLS is enabled) </td>
+            <td> No </td>
+        </tr>
         <tr> 
             <td> -l &lt; all | DC:"&lt;DC_name&gt;" | me[:"&lt;dsenode_host_id_string&gt;"] </td>
             <td> List OpsCenter backup SSTables on the commandline output: <br/>
@@ -92,46 +98,71 @@ The program needs a few Java options and parameters to work properly:
             <td> 
                 <li> <b>ONLY works with "-l me" option; which means "-l all" and "-l DC" options are just for display purpose</b> </li>
                 <li> &lt; concurrent_downloading_thread_num &gt; represents the number of threads (default 5 if not specified) that can concurrently download OpsCenter backup sstable sets. </li>
-           </td>
-           <td> No </td>
+            </td>
+            <td> No </td>
         </tr>
         <tr>
-           <td> -k &lt;keyspace_name&gt; </td>
-           <td> Download all OpsCenter backup SSTables that belong to the specified keyspace. </td>
-           <td> Yes </td>
+            <td> -k &lt;keyspace_name&gt; </td>
+            <td> Download all OpsCenter backup SSTables that belong to the specified keyspace. </td>
+            <td> Yes </td>
         </tr>
         <tr>
-           <td> -t &lt;table_name&gt; </td>
-           <td> <li> Download all OpsCenter backup SSTables that belong to the specified table. </li> 
+            <td> -t &lt;table_name&gt; </td>
+            <td> <li> Download all OpsCenter backup SSTables that belong to the specified table. </li> 
                 <li> When not specified, all Cassandra tables under the specified keyspace will be downloaded. </li>
-           </td>
-           <td> No </td>
-         </tr>
-         <tr>
-           <td> -obt &lt;opsCenter_backup_time&gt; </td>
+            </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -obt &lt;opsCenter_backup_time&gt; </td>
             <td> OpsCenter backup time (must be in format <b>M/d/yyyy h:mm a</b>) </li>
-           </td>
-           <td> Yes </td>
-         </tr>
-         <tr>
-           <td> -cls &lt;true|false&gt; </td>
-           <td> Whether to clear local download home directory before downloading (default: false)
-           </td>
-           <td> No </td>
-         </tr>
-         <tr>
-           <td> -nds &lt;true|false&gt; </td>
-           <td> Whether NOT to maitain backup location folder structure in the local download directory (default: false)
-             <li> <b>ONLY applicable when "-t" option is specified.</b> </li> 
-             <li> When NOT specified or NO "-t" option is specified, backup location folder structure is always maintained under the local download directory. This is to avoid possible SSTable name conflicts among different keyspaces and/or tables.</li>
-           </td>
-           <td> No </td>
-         </tr>
+            </td>
+            <td> Yes </td>
+        </tr>
+        <tr>
+            <td> -cls &lt;true|false&gt; </td>
+            <td> Whether to clear local download home directory before downloading (default: false)
+            </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -nds &lt;true|false&gt; </td>
+            <td> Whether NOT to maitain backup location folder structure in the local download directory (default: false)
+                <li> <b>ONLY applicable when "-t" option is specified.</b> </li> 
+                <li> When NOT specified or NO "-t" option is specified, backup location folder structure is always maintained under the local download directory. This is to avoid possible SSTable name conflicts among different keyspaces and/or tables.</li>
+            </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -u &lt;cassandra_user_name&gt; </td>
+            <td> Cassandra user name (when DSE authentication is enabled) </td>
+            <td> No </td>
+        </tr>
+        <tr>
+            <td> -p &lt;cassandra_user_password&gt; </td>
+            <td> Cassandra user name (when DSE authentication is enabled) </td>
+            <td> No </td>
+        </tr>
     </tbody>
 </table>
 </br>
 
-## 2.2. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
+## 2.2. Utility configuration file 
+
+The utility configuration file includes several items to configure. These items are quite straightforward and self-explanatory.
+```
+dse_contact_point: <DSE_cluster_contact_point>
+local_download_home: <DSE_node_local_download_home_directory>
+nfs_backup_home: <absolute_path_of_NFS_backup_location>
+use_ssl: <true | false>
+user_auth: <true | false>
+```
+**NOTE**
+1) Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
+2) The item of "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled 
+3) The item of "user_auth" is ONLY relevant when DSE authentication is enabled
+
+## 2.3. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
 This utility allows you to download OpsCenter backup SSTables further by the following categories:
 1. Cassandra keyspace name that the SSTables belong to ("-k" option, Mandatory)
@@ -145,7 +176,7 @@ When specifiying OpsCenter backup time, it <b>MUST</b> be
 - Matching the OpsCenter backup time from OpsCenter WebUI, as highlighted in the example screenshot below:
   <img src="src/main/images/Screen%20Shot%202018-07-09%20at%2022.21.18.png" width="250px"/>
 
-## 2.3. Multi-threaded Download and Local Download Folder Structure
+## 2.4. Multi-threaded Download and Local Download Folder Structure
 
 This utility is designed to be multi-threaded by nature to download multiple SSTable sets. When I say one SSTable set, it refers to the following files together:
 * mc-<#>-big-CompresssionInfo.db
@@ -189,12 +220,12 @@ An example is demonstrated below.
 
 
 
-## 2.4. Examples
+## 2.5. Examples
 
 1. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties
   -l all 
   -k testks 
@@ -202,20 +233,35 @@ java
   -obt "7/17/2018 10:02 PM"
 ```
 
-2. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
+2. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM. DSE cluster has client-to-node SSL/TLS encryption enabled and requires user authenticatiion
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -Djavax.net.ssl.trustStore=<path_to_client_truststore>
+  -Djavax.net.ssl.trustStorePassword=<password_to_client_truststore>
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -c ./opsc_nfs_config.properties
+  -l all 
+  -k testks 
+  -t songs 
+  -obt "7/17/2018 10:02 PM"
+  -u <cassandra_user_name>
+  -p <cassandra_user_password>
+```
+
+3. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
+```
+java 
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -c ./opsc_nfs_config.properties
   -l me
   -k testks1 
   -obt "7/17/2018 10:02 PM"
 ```
 
-3. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
+4. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
-  -jar ./opscnfsrestore-1.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties 
   -l me:"74c08172-9870-4dcc-9a7e-48bddfcc8572" 
   -d 5
@@ -224,7 +270,7 @@ java
   -cls true
 ```
 
-The utility command line output for example 3 above is something like below:
+The utility command line output for example 4 above is something like below:
 ```
 List and download OpsCenter NFS backup items for specified host (74c08172-9870-4dcc-9a7e-48bddfcc8572) ...
   - /Users/yabinmeng/Temp/nfs_bkup_simu/snapshots/74c08172-9870-4dcc-9a7e-48bddfcc8572/sstables/a2d0b957a3e915d9f891268f691a7e36-mc-1-big-CompressionInfo.db (size = 43 bytes) [keyspace: testks; table: songs]
