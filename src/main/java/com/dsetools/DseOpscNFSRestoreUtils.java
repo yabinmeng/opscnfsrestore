@@ -11,8 +11,12 @@ public class DseOpscNFSRestoreUtils {
     static String CFG_KEY_CONTACT_POINT = "dse_contact_point";
     static String CFG_KEY_LOCAL_DOWNLOAD_HOME = "local_download_home";
     static String CFG_KEY_OPSC_NFS_BKUP_HOMEDIR = "nfs_backup_home";
+    static String CFG_KEY_IP_MATCHING_NIC = "ip_matching_nic";
     static String CFG_KEY_USE_SSL = "use_ssl";
     static String CFG_KEY_USER_AUTH = "user_auth";
+
+    static String JAVA_SSL_TRUSTSTORE_PROP = "javax.net.ssl.trustStore";
+    static String JAVA_SSL_TRUSTSTORE_PASS_PROP = "javax.net.ssl.trustStorePassword";
 
     static String OPSC_NFS_OBJKEY_BASESTR = "snapshots";
     static String OPSC_NFS_OBJKEY_OPSC_MARKER_STR = "opscenter_adhoc";
@@ -60,35 +64,52 @@ public class DseOpscNFSRestoreUtils {
             String dseContactPoint = configProps.getProperty(CFG_KEY_CONTACT_POINT);
             String localDownloadHome = configProps.getProperty(CFG_KEY_LOCAL_DOWNLOAD_HOME);
             String nfsBackupLocation = configProps.getProperty(CFG_KEY_OPSC_NFS_BKUP_HOMEDIR);
-
+            String ipMatchingNic = configProps.getProperty(CFG_KEY_IP_MATCHING_NIC);
             String useSslStr = configProps.getProperty(CFG_KEY_USE_SSL);
             String userAuthStr = configProps.getProperty(CFG_KEY_USER_AUTH);
 
-
+            // An active DSE contact point is not a must for all cases. Log a warning message if not specified.
             if ( (dseContactPoint == null) || dseContactPoint.isEmpty() ) {
-                System.out.println("ERROR: Empty value for configuration file parameter \"" + CFG_KEY_CONTACT_POINT + "\".");
+                System.out.println("WARN: Empty value for configuration file parameter \"" + CFG_KEY_CONTACT_POINT + "\".");
             }
 
+            // Local download home directory is a must. If not specified, error out
             if ( (localDownloadHome == null) || localDownloadHome.isEmpty() ) {
                 System.out.println("ERROR: Empty value for configuration file parameter \"" + CFG_KEY_LOCAL_DOWNLOAD_HOME + "\".");
+                configProps = null;
             }
 
+            // NFS backup location is a must. If not specified, error out
             if ( (nfsBackupLocation == null) || nfsBackupLocation.isEmpty() ) {
                 System.out.println("ERROR: Empty value for configuration file parameter \"" + CFG_KEY_OPSC_NFS_BKUP_HOMEDIR + "\".");
+                configProps = null;
             }
 
-            try {
-                boolean useSsl = Boolean.parseBoolean(userAuthStr);
-            }
-            catch (NumberFormatException nfe) {
-                System.out.println("ERROR: Incorrect value for configuration file parameter \"" + CFG_KEY_USE_SSL + "\".");
+            // "ip_matching_nic" is not a must for all cases. Log a warning message if not specified.
+            if ( (ipMatchingNic == null) || ipMatchingNic.isEmpty() ) {
+                System.out.println("WARN: Empty value for configuration file parameter \"" + CFG_KEY_IP_MATCHING_NIC + "\".");
             }
 
-            try {
-                boolean userAuth = Boolean.parseBoolean(userAuthStr);
+            // When "use_ssl" is specified, it must be a valid type that can convert to boolean. Otherwise, error out.
+            if ( (useSslStr != null) && (!useSslStr.isEmpty()) ) {
+                try {
+                    Boolean.parseBoolean(useSslStr);
+                }
+                catch (NumberFormatException nfe) {
+                    System.out.println("ERROR: Incorrect value for configuration file parameter \"" + CFG_KEY_USE_SSL + "\".");
+                    configProps = null;
+                }
             }
-            catch (NumberFormatException nfe) {
-                System.out.println("ERROR: Incorrect value for configuration file parameter  \"" + CFG_KEY_USER_AUTH + "\".");
+
+            // When "user_auth" is specified, it must be a valid type that can convert to boolean. Otherwise, error out.
+            if ( (userAuthStr != null) && (!userAuthStr.isEmpty()) ) {
+                try {
+                    Boolean.parseBoolean(userAuthStr);
+                }
+                catch (NumberFormatException nfe) {
+                    System.out.println("ERROR: Incorrect value for configuration file parameter  \"" + CFG_KEY_USER_AUTH + "\".");
+                    configProps = null;
+                }
             }
         }
         catch (IOException ioe) {

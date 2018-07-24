@@ -373,33 +373,39 @@ public class DseOpscNFSRestore {
 
         if ( (hostIDStr == null) || (hostIDStr.isEmpty()) ) {
 
-            String localhostIp = getLocalIP("eth0");
+            String localhostIp = getLocalIP(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_IP_MATCHING_NIC));
 
             if (localhostIp == null) {
                 System.out.println("\nERROR: failed to get local host IP address!");
                 return;
             }
 
+            boolean foundMatchingHost = false;
             for (Host host : dseClusterMetadata.getAllHosts()) {
                 InetAddress listen_address = host.getListenAddress();
-                String listen_address_ip = (listen_address != null) ? host.getListenAddress().getHostAddress() : "";
+                String listen_address_ip = (listen_address != null) ? listen_address.getHostAddress() : "";
 
-                InetAddress broadcast_address = host.getListenAddress();
-                String broadcast_address_ip = (broadcast_address != null) ? host.getBroadcastAddress().getHostAddress() : "";
+                InetAddress broadcast_address = host.getBroadcastAddress();
+                String broadcast_address_ip = (broadcast_address != null) ? broadcast_address.getHostAddress() : "";
 
                 //System.out.println("listen_address: " + listen_address_ip);
                 //System.out.println("broadcast_address: " + broadcast_address_ip + "\n");
 
                 if (localhostIp.equals(listen_address_ip) || localhostIp.equals(broadcast_address_ip)) {
                     myHostId = host.getHostId().toString();
+                    foundMatchingHost = true;
                     break;
                 }
+            }
+
+            if (!foundMatchingHost) {
+                System.out.format("\nERROR: failed to match my DSE host address by IP (NIC Name: %s; NIC IP: %s)\n!",
+                    CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_IP_MATCHING_NIC),
+                    localhostIp);
             }
         }
 
         if ( myHostId != null && !myHostId.isEmpty() ) {
-            //System.out.println("locahost: " + myHostId);
-
             listDownloadNFSObjForHost(
                 myHostId,
                 download,
@@ -943,13 +949,7 @@ public class DseOpscNFSRestore {
 
         // "-u" and "-p" option is optional.
         String userName = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_USER_SHORT);
-        if (userName == null) {
-            userName = "";
-        }
         String passWord = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_PWD_SHORT);
-        if (passWord == null) {
-            passWord = "";
-        }
 
 
         /**
@@ -964,7 +964,7 @@ public class DseOpscNFSRestore {
 
         CONFIGPROP = DseOpscNFSRestoreUtils.LoadConfigFile(cfgFilePath);
         if (CONFIGPROP == null) {
-            System.exit(100);
+            usageAndExit(100);
         }
 
         // List the files (recursively) under the NFS backup home directory
@@ -980,12 +980,43 @@ public class DseOpscNFSRestore {
 
         // Check whether "use_ssl" config file parameter is true.
         // - If so, java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be set.
-        boolean useSsl = Boolean.parseBoolean(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL));
+        boolean useSsl = false;
+        String useSslStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL);
+        if ( (useSslStr != null) && !(useSslStr.isEmpty()) ) {
+            useSsl = Boolean.parseBoolean(useSslStr);
+        }
 
+        if (useSsl) {
+            String trustStoreProp = System.getProperty(DseOpscNFSRestoreUtils.JAVA_SSL_TRUSTSTORE_PROP);
+            String trustStorePassProp = System.getProperty(DseOpscNFSRestoreUtils.JAVA_SSL_TRUSTSTORE_PASS_PROP);
+
+            if ( (trustStoreProp == null) || trustStoreProp.isEmpty() ||
+                 (trustStorePassProp == null) || trustStorePassProp.isEmpty()) {
+                System.out.format("\nERROR: Must provide SSL system properties (-D%s and -D%s) when " +
+                                "configuration file parameter \"%s\" is set true!\n",
+                    DseOpscNFSRestoreUtils.JAVA_SSL_TRUSTSTORE_PROP,
+                    DseOpscNFSRestoreUtils.JAVA_SSL_TRUSTSTORE_PASS_PROP,
+                    DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL);
+                usageAndExit(104);
+            }
+        }
 
         // Check whether "user_auth" config file parameter is true.
         // - If so, command line parameter "-u (--user)" and "-p (--password)" must be set.
-        boolean userAuth = Boolean.parseBoolean(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USER_AUTH));
+        boolean userAuth = false;
+        String userAuthStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL);
+        if ( (userAuthStr != null) && !(userAuthStr.isEmpty()) ) {
+            userAuth = Boolean.parseBoolean(useSslStr);
+        }
+
+        if (userAuth) {
+            if ( (userName == null) || userName.isEmpty() ||
+                 (passWord == null) || passWord.isEmpty() ) {
+                System.out.println("\nERROR: Must provide user name and password when configuration file parameter \"" +
+                    DseOpscNFSRestoreUtils.CFG_KEY_USER_AUTH + "\" is set true!");
+                usageAndExit(105);
+            }
+        }
 
 
         /**
