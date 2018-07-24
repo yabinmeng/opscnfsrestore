@@ -34,17 +34,7 @@ In order to use this utility, please take the following steps:
 
 1. Download the most recent release (version 2.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-2.0-SNAPSHOT.jar)
 
-2. Download the example configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties)
-
-   The example configuration file includes 3 items to configure. These items are quite straightforward and self-explanatory. Please update accordingly to your use case!
-```
-dse_contact_point: <DSE_cluster_contact_point>
-local_download_home: <DSE_node_local_download_home_directory>
-nfs_backup_home: <absolute_path_of_NFS_backup_location>
-use_ssl: <true | false>
-user_auth: <true | false>
-```
-**NOTE**: Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
+2. Download the (example) utility configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties) and make corresponding changes to your own use case.
 
 3. Run the program, providing the proper java options and arguments.
 ```
@@ -157,7 +147,22 @@ The program needs a few Java options and parameters to work properly:
 </table>
 </br>
 
-## 2.2. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
+## 2.2. Utility configuration file 
+
+The utility configuration file includes several items to configure. These items are quite straightforward and self-explanatory.
+```
+dse_contact_point: <DSE_cluster_contact_point>
+local_download_home: <DSE_node_local_download_home_directory>
+nfs_backup_home: <absolute_path_of_NFS_backup_location>
+use_ssl: <true | false>
+user_auth: <true | false>
+```
+**NOTE**
+1) Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
+2) The item of "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled 
+3) The item of "user_auth" is ONLY relevant when DSE authentication is enabled
+
+## 2.3. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
 This utility allows you to download OpsCenter backup SSTables further by the following categories:
 1. Cassandra keyspace name that the SSTables belong to ("-k" option, Mandatory)
@@ -171,7 +176,7 @@ When specifiying OpsCenter backup time, it <b>MUST</b> be
 - Matching the OpsCenter backup time from OpsCenter WebUI, as highlighted in the example screenshot below:
   <img src="src/main/images/Screen%20Shot%202018-07-09%20at%2022.21.18.png" width="250px"/>
 
-## 2.3. Multi-threaded Download and Local Download Folder Structure
+## 2.4. Multi-threaded Download and Local Download Folder Structure
 
 This utility is designed to be multi-threaded by nature to download multiple SSTable sets. When I say one SSTable set, it refers to the following files together:
 * mc-<#>-big-CompresssionInfo.db
@@ -215,7 +220,7 @@ An example is demonstrated below.
 
 
 
-## 2.4. Examples
+## 2.5. Examples
 
 1. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM
 ```
