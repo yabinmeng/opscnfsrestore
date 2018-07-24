@@ -11,6 +11,8 @@ public class DseOpscNFSRestoreUtils {
     static String CFG_KEY_CONTACT_POINT = "dse_contact_point";
     static String CFG_KEY_LOCAL_DOWNLOAD_HOME = "local_download_home";
     static String CFG_KEY_OPSC_NFS_BKUP_HOMEDIR = "nfs_backup_home";
+    static String CFG_KEY_USE_SSL = "use_ssl";
+    static String CFG_KEY_USER_AUTH = "user_auth";
 
     static String OPSC_NFS_OBJKEY_BASESTR = "snapshots";
     static String OPSC_NFS_OBJKEY_OPSC_MARKER_STR = "opscenter_adhoc";
@@ -40,6 +42,11 @@ public class DseOpscNFSRestoreUtils {
     static String CMD_OPTION_CLSDOWNDIR_LONG = "clsDownDir";
     static String CMD_OPTION_NODIR_SHORT = "nds";
     static String CMD_OPTION_NODIR_LONG = "noDirStruct";
+    static String CMD_OPTION_USER_SHORT = "u";
+    static String CMD_OPTION_USER_LONG = "user";
+    static String CMD_OPTION_PWD_SHORT = "p";
+    static String CMD_OPTION_PWD_LONG = "password";
+
 
     static Properties LoadConfigFile(String configFilePath) {
 
@@ -54,9 +61,34 @@ public class DseOpscNFSRestoreUtils {
             String localDownloadHome = configProps.getProperty(CFG_KEY_LOCAL_DOWNLOAD_HOME);
             String nfsBackupLocation = configProps.getProperty(CFG_KEY_OPSC_NFS_BKUP_HOMEDIR);
 
-            if ( (dseContactPoint == null) || (localDownloadHome == null) || (nfsBackupLocation == null) ||
-                 (dseContactPoint.isEmpty()) || (localDownloadHome.isEmpty()) || (nfsBackupLocation.isEmpty()) ) {
-                System.out.println("ERROR: Incorrect configuration file parameter values!");
+            String useSslStr = configProps.getProperty(CFG_KEY_USE_SSL);
+            String userAuthStr = configProps.getProperty(CFG_KEY_USER_AUTH);
+
+
+            if ( (dseContactPoint == null) || dseContactPoint.isEmpty() ) {
+                System.out.println("ERROR: Empty value for configuration file parameter \"" + CFG_KEY_CONTACT_POINT + "\".");
+            }
+
+            if ( (localDownloadHome == null) || localDownloadHome.isEmpty() ) {
+                System.out.println("ERROR: Empty value for configuration file parameter \"" + CFG_KEY_LOCAL_DOWNLOAD_HOME + "\".");
+            }
+
+            if ( (nfsBackupLocation == null) || nfsBackupLocation.isEmpty() ) {
+                System.out.println("ERROR: Empty value for configuration file parameter \"" + CFG_KEY_OPSC_NFS_BKUP_HOMEDIR + "\".");
+            }
+
+            try {
+                boolean useSsl = Boolean.parseBoolean(userAuthStr);
+            }
+            catch (NumberFormatException nfe) {
+                System.out.println("ERROR: Incorrect value for configuration file parameter \"" + CFG_KEY_USE_SSL + "\".");
+            }
+
+            try {
+                boolean userAuth = Boolean.parseBoolean(userAuthStr);
+            }
+            catch (NumberFormatException nfe) {
+                System.out.println("ERROR: Incorrect value for configuration file parameter  \"" + CFG_KEY_USER_AUTH + "\".");
             }
         }
         catch (IOException ioe) {

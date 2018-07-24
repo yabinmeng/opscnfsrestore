@@ -1,9 +1,6 @@
 package com.dsetools;
 
-import com.datastax.driver.core.ConsistencyLevel;
-import com.datastax.driver.core.Host;
-import com.datastax.driver.core.Metadata;
-import com.datastax.driver.core.QueryOptions;
+import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.dse.DseCluster;
 import org.apache.commons.cli.*;
@@ -16,6 +13,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 import java.time.*;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -692,21 +690,31 @@ public class DseOpscNFSRestore {
             DseOpscNFSRestoreUtils.CMD_OPTION_TABLE_LONG,
             true,
             "Table name to be restored");
-        Option opscBkupTimeOPtion = new Option(
+        Option opscBkupTimeOption = new Option(
             DseOpscNFSRestoreUtils.CMD_OPTION_BACKUPTIME_SHORT,
             DseOpscNFSRestoreUtils.CMD_OPTION_BACKUPTIME_LONG,
             true,
             "OpsCetner backup datetime");
-        Option clsTargetDirOPtion = new Option(
+        Option clsTargetDirOption = new Option(
             DseOpscNFSRestoreUtils.CMD_OPTION_CLSDOWNDIR_SHORT,
             DseOpscNFSRestoreUtils.CMD_OPTION_CLSDOWNDIR_LONG,
             true,
             "Clear existing download directory content");
-        Option noDirStructOPtion = new Option(
+        Option noDirStructOption = new Option(
                 DseOpscNFSRestoreUtils.CMD_OPTION_NODIR_SHORT,
                 DseOpscNFSRestoreUtils.CMD_OPTION_NODIR_LONG,
                 true,
                 "Don't maintain keyspace/table backup data directory structure");
+        Option userOption = new Option(
+                DseOpscNFSRestoreUtils.CMD_OPTION_USER_SHORT,
+                DseOpscNFSRestoreUtils.CMD_OPTION_USER_LONG,
+                true,
+                "Cassandra user name");
+        Option passwdOption = new Option(
+                DseOpscNFSRestoreUtils.CMD_OPTION_PWD_SHORT,
+                DseOpscNFSRestoreUtils.CMD_OPTION_PWD_LONG,
+                true,
+                "Cassandra user password");
 
         options.addOption(helpOption);
         options.addOption(listOption);
@@ -714,9 +722,11 @@ public class DseOpscNFSRestore {
         options.addOption(downloadOption);
         options.addOption(keyspaceOption);
         options.addOption(tableOption);
-        options.addOption(opscBkupTimeOPtion);
-        options.addOption(clsTargetDirOPtion);
-        options.addOption(noDirStructOPtion);
+        options.addOption(opscBkupTimeOption);
+        options.addOption(clsTargetDirOption);
+        options.addOption(noDirStructOption);
+        options.addOption(userOption);
+        options.addOption(passwdOption);
     }
 
     /**
@@ -931,6 +941,16 @@ public class DseOpscNFSRestore {
             }
         }
 
+        // "-u" and "-p" option is optional.
+        String userName = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_USER_SHORT);
+        if (userName == null) {
+            userName = "";
+        }
+        String passWord = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_PWD_SHORT);
+        if (passWord == null) {
+            passWord = "";
+        }
+
 
         /**
          *  Parsing commandline parameters (ends)  <----
@@ -947,6 +967,7 @@ public class DseOpscNFSRestore {
             System.exit(100);
         }
 
+        // List the files (recursively) under the NFS backup home directory
         NFS_BACKUP_FILELIST = listFilesForDir(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR));
         // Testing purpose
         /*
@@ -957,6 +978,15 @@ public class DseOpscNFSRestore {
         System.exit(0);
         */
 
+        // Check whether "use_ssl" config file parameter is true.
+        // - If so, java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be set.
+        boolean useSsl = Boolean.parseBoolean(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL));
+
+
+        // Check whether "user_auth" config file parameter is true.
+        // - If so, command line parameter "-u (--user)" and "-p (--password)" must be set.
+        boolean userAuth = Boolean.parseBoolean(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USER_AUTH));
+
 
         /**
          * Check if NFS backup home directory is reachable!
@@ -966,7 +996,6 @@ public class DseOpscNFSRestore {
             System.out.println("\nERROR: Specified NFS OpsCenter backup home directory (in the config file) is not correct!");
             usageAndExit(110);
         }
-
 
 
         /**
@@ -984,21 +1013,32 @@ public class DseOpscNFSRestore {
         if (checkDseMetadata) {
 
             try {
-                DseCluster dseCluster = DseCluster.builder()
+                DseCluster.Builder clusterBuilder = DseCluster.builder()
                         .addContactPoint(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_CONTACT_POINT))
-                        .withQueryOptions(queryOptions)
-                        .build();
-                dseCluster.getMetadata();
+                        .withQueryOptions(queryOptions);
+
+
+                if (useSsl) {
+                    clusterBuilder.withSSL();
+                }
+
+                if (userAuth) {
+                    AuthProvider authProvider = new PlainTextAuthProvider(userName, passWord);
+                    clusterBuilder.withAuthProvider(authProvider);
+                }
+
+                DseCluster dseCluster = clusterBuilder.build();
+                dseClusterMetadata = dseCluster.getMetadata();
             }
             catch (NoHostAvailableException nhae) {
                 System.out.println("\nERROR: Failed to check DSE cluster metadata. " +
                         "Please check DSE cluster status and/or connection requirements (e.g. SSL/TLS, username/password)!");
-                System.exit(120);
+                usageAndExit(120);
             }
             catch (Exception e) {
                 System.out.println("\nERROR: Unknown error when checking DSE cluster metadata!");
-                e.printStackTrace();;
-                System.exit(125);
+                e.printStackTrace();
+                usageAndExit(125);
             }
         }
 
