@@ -32,7 +32,7 @@ The second step of this approach is very straightforward. But when it comes to t
 
 In order to use this utility, please take the following steps: 
 
-1. Download the most recent release (version 2.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/1.0/opscnfsrestore-2.0-SNAPSHOT.jar)
+1. Download the most recent release (version 2.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/2.0/opscnfsrestore-2.0-SNAPSHOT.jar)
 
 2. Download the (example) utility configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties) and make corresponding changes to your own use case.
 
