@@ -160,11 +160,15 @@ user_auth: <true | false>
 ```
 Most of these items are straightforward and I'll explain some of them a little bit more.
 
-1) "dse_contact_point": When the utility needs to check DSE cluster metadata [-l ALL, -l DC:<DC_name>, -l me (no specific "dsenode_host_id_string")], it has to connecto to the DSE cluster in order to get the information. For these cases, an actively running DSE node IP should be provided here.
-2) "local_download_home" and "nfs_backup_home": Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
-3) "ip_matching_nic": When use -l me (no specific "dsenode_host_id_string") option, the utility automatically finds the correct DSE node host ID through IP matching. This parameter tells the utility which NIC name to use for IP matching. 
-4) "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled. When true, Java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be provided.
-5) "user_auth" is ONLY relevant when DSE authentication is enabled. When true, "-u <cassandra_user_name>" and "-p <cassandra_user_password>" options must be provided.
+* "dse_contact_point": When the utility needs to check DSE cluster metadata [-l ALL, -l DC:<DC_name>, -l me (no specific "dsenode_host_id_string")], it has to connecto to the DSE cluster in order to get the information. For these cases, an actively running DSE node IP should be provided here.
+
+* "local_download_home" and "nfs_backup_home": Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
+
+* "ip_matching_nic": When use -l me (no specific "dsenode_host_id_string") option, the utility automatically finds the correct DSE node host ID through IP matching. This parameter tells the utility which NIC name to use for IP matching. 
+
+* "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled. When true, Java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be provided.
+
+* "user_auth" is ONLY relevant when DSE authentication is enabled. When true, "-u <cassandra_user_name>" and "-p <cassandra_user_password>" options must be provided.
 
 ## 2.3. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
