@@ -5,6 +5,7 @@ import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.dse.DseCluster;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.json.simple.JSONArray;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.JSONObject;
@@ -399,7 +400,7 @@ public class DseOpscNFSRestore {
             }
 
             if (!foundMatchingHost) {
-                System.out.format("\nERROR: failed to match my DSE host address by IP (NIC Name: %s; NIC IP: %s)\n!",
+                System.out.format("\nERROR: Failed to match my DSE host address by IP (NIC Name: %s; NIC IP: %s)!\n",
                     CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_IP_MATCHING_NIC),
                     localhostIp);
             }
@@ -501,22 +502,34 @@ public class DseOpscNFSRestore {
     /**
      * Recursively get all files and their sizes under a specified directory
      *
-     * @param dirName
+     * @param dirPath
      * @return
      */
-    static Map<Path, Long> listFilesForDir(String dirName) {
-        assert ( (dirName != null) && !(dirName.isEmpty()) );
-
-        Path homePath = Paths.get(dirName);
+    static Map<Path, Long> listFilesForDir(Path dirPath) {
+        assert ( dirPath != null );
 
         //Map<Path, Long> paths = new LinkedHashMap<>();
-        Map<Path, Long> paths = new TreeMap<>();
+        final Map<Path, Long> paths = new TreeMap<>();
 
-        try ( Stream<Path> stream = Files.walk(homePath) ) {
+        /**
+         * Oracle Java 8 File stream API implementation
+         * ------------------------------------
+        try ( Stream<Path> stream = Files.walk(dirPath) ) {
             stream.filter( p -> !p.toFile().isDirectory())
                   .forEach( p -> paths.put(p, getFileSize(p)) );
         }
         catch ( IOException ioe ) {
+            ioe.printStackTrace();
+        }
+        */
+
+        /**
+         * Apache commons API
+         */
+        Collection<File> files = FileUtils.listFiles(dirPath.toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE);
+        for ( File file: files ) {
+            Path path= file.toPath();
+            paths.put(path, getFileSize(path));
         }
 
         return paths;
@@ -967,17 +980,6 @@ public class DseOpscNFSRestore {
             usageAndExit(100);
         }
 
-        // List the files (recursively) under the NFS backup home directory
-        NFS_BACKUP_FILELIST = listFilesForDir(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR));
-        // Testing purpose
-        /*
-        for ( Path path : NFS_BACKUP_FILELIST.keySet() ) {
-            System.out.println(path.toFile().getAbsolutePath() + "(size: " + NFS_BACKUP_FILELIST.get(path) + ")");
-        }
-
-        System.exit(0);
-        */
-
         // Check whether "use_ssl" config file parameter is true.
         // - If so, java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be set.
         boolean useSsl = false;
@@ -1020,13 +1022,52 @@ public class DseOpscNFSRestore {
 
 
         /**
-         * Check if NFS backup home directory is reachable!
+         * Check if NFS backup home directory is reachable! Otherwise, list files under it.
          */
         Path nfsBackupHomePath = Paths.get(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR));
-        if ( !Files.isDirectory(nfsBackupHomePath) || Files.notExists(nfsBackupHomePath) ) {
-            System.out.println("\nERROR: Specified NFS OpsCenter backup home directory (in the config file) is not correct!");
+        if ( Files.notExists(nfsBackupHomePath) ||
+             !Files.isDirectory(nfsBackupHomePath)  ||
+             !(nfsBackupHomePath.toFile().canRead() && nfsBackupHomePath.toFile().canExecute()) ) {
+            System.out.println("\nERROR: [Config File] Specified NFS OpsCenter backup directory is not correct (doesn't exist, non-directory, or no READ privilege)!");
             usageAndExit(110);
         }
+
+        // List the files (recursively) under the NFS backup home directory
+        NFS_BACKUP_FILELIST = listFilesForDir(nfsBackupHomePath);
+        if ( ( NFS_BACKUP_FILELIST == null) || ( NFS_BACKUP_FILELIST.isEmpty() ) ) {
+            System.out.println("\nERROR: [Config File] Specified NFS OpsCenter backup home directory doesn't have any file contents in it!");
+            usageAndExit(115);
+        }
+
+        /**
+         * If the specified download home directory already exists,
+         *      check if it is reachable and write-able; otherwise, error-out.
+         *
+         * If the specified download home directory doesn't exist, do nothing here
+         */
+        Path localDownloadHomePath = Paths.get(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_LOCAL_DOWNLOAD_HOME));
+        if ( Files.exists(localDownloadHomePath) &&
+             ( !Files.isDirectory(localDownloadHomePath)  ||
+               !( localDownloadHomePath.toFile().canRead() &&
+                  localDownloadHomePath.toFile().canWrite() &&
+                  localDownloadHomePath.toFile().canExecute()
+                )
+             )
+           )
+        {
+            System.out.println("\nERROR: [Config File] Specified local download directory is not correct (doesn't exist, non-directory, or no Read/Write privilege)!");
+            usageAndExit(120);
+        }
+
+
+        // Testing purpose
+        /*
+        for ( Path path : NFS_BACKUP_FILELIST.keySet() ) {
+            System.out.println(path.toFile().getAbsolutePath() + "(size: " + NFS_BACKUP_FILELIST.get(path) + ")");
+        }
+
+        System.exit(0);
+        */
 
 
         /**
@@ -1045,8 +1086,8 @@ public class DseOpscNFSRestore {
 
             try {
                 DseCluster.Builder clusterBuilder = DseCluster.builder()
-                        .addContactPoint(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_CONTACT_POINT))
-                        .withQueryOptions(queryOptions);
+                    .addContactPoint(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_CONTACT_POINT))
+                    .withQueryOptions(queryOptions);
 
 
                 if (useSsl) {
