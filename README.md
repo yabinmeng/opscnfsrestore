@@ -32,7 +32,7 @@ The second step of this approach is very straightforward. But when it comes to t
 
 In order to use this utility, please take the following steps: 
 
-1. Download the most recent release (version 2.0) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/2.0/opscnfsrestore-2.0-SNAPSHOT.jar)
+1. Download the most recent release (version 2.1) of .jar file from [here](https://github.com/yabinmeng/opscnfsrestore/releases/download/2.1/opscnfsrestore-2.1-SNAPSHOT.jar)
 
 2. Download the (example) utility configuration file (opsc_nfs_config.properties) from [here](https://github.com/yabinmeng/opscnfsrestore/blob/master/src/main/resources/opsc_nfs_config.properties) and make corresponding changes to your own use case.
 
@@ -41,7 +41,7 @@ In order to use this utility, please take the following steps:
 java 
   [-Djavax.net.ssl.trustStore=<client_truststore>] 
   [-Djavax.net.ssl.trustStorePassword=<client_truststore_password>]
-  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
   -c <opsc_nfs_configure.properties_full_path> 
   -d <concurrent_downloading_thread_num> 
@@ -149,18 +149,26 @@ The program needs a few Java options and parameters to work properly:
 
 ## 2.2. Utility configuration file 
 
-The utility configuration file includes several items to configure. These items are quite straightforward and self-explanatory.
+The utility configuration file includes several items to configure. 
 ```
 dse_contact_point: <DSE_cluster_contact_point>
 local_download_home: <DSE_node_local_download_home_directory>
 nfs_backup_home: <absolute_path_of_NFS_backup_location>
+ip_matching_nic: <NIC_name_for_IP_matching>
 use_ssl: <true | false>
 user_auth: <true | false>
 ```
-**NOTE**
-1) Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
-2) The item of "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled 
-3) The item of "user_auth" is ONLY relevant when DSE authentication is enabled
+Most of these items are straightforward and I'll explain some of them a little bit more.
+
+* "dse_contact_point": When the utility needs to check DSE cluster metadata [-l ALL, -l DC:<DC_name>, -l me (no specific "dsenode_host_id_string")], it has to connecto to the DSE cluster in order to get the information. For these cases, an actively running DSE node IP should be provided here.
+
+* "local_download_home" and "nfs_backup_home": Please make sure using the absolute path for both the NFS backup location and the local download home directory! The Linux user that runs this utility needs to have read privilege on the NFS backup location as well as both read and write privilege on the local download directory.
+
+* "ip_matching_nic": When use -l me (no specific "dsenode_host_id_string") option, the utility automatically finds the correct DSE node host ID through IP matching. This parameter tells the utility which NIC name to use for IP matching. 
+
+* "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled. When true, Java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be provided.
+
+* "user_auth" is ONLY relevant when DSE authentication is enabled. When true, "-u <cassandra_user_name>" and "-p <cassandra_user_password>" options must be provided.
 
 ## 2.3. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
@@ -225,7 +233,7 @@ An example is demonstrated below.
 1. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
-  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties
   -l all 
   -k testks 
@@ -238,7 +246,7 @@ java
 java 
   -Djavax.net.ssl.trustStore=<path_to_client_truststore>
   -Djavax.net.ssl.trustStorePassword=<password_to_client_truststore>
-  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties
   -l all 
   -k testks 
@@ -251,7 +259,7 @@ java
 3. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
-  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -c ./opsc_nfs_config.properties
   -l me
   -k testks1 
@@ -261,7 +269,7 @@ java
 4. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
-  -jar ./opscnfsrestore-2.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties 
   -l me:"74c08172-9870-4dcc-9a7e-48bddfcc8572" 
   -d 5
