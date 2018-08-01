@@ -457,7 +457,7 @@ public class DseOpscNFSRestore {
 
 
         if ( opscUniquifierToKsTbls.isEmpty() ) {
-            System.out.println("ERROR: Failed to find get backup SSTable file list from " +
+            System.out.println("ERROR: Failed to get backup SSTable file list from " +
                     DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE + " file!");
             return;
         }
@@ -725,7 +725,7 @@ public class DseOpscNFSRestore {
 
 
                 if ( opscUniquifierToKsTbls.isEmpty() ) {
-                    System.out.println("    ERROR: Failed to find get backup SSTable file list from " +
+                    System.out.println("    ERROR: Failed to get backup SSTable file list from " +
                         DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE + " file!");
 
                     continue;
