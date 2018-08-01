@@ -14,6 +14,7 @@ public class DseOpscNFSRestoreUtils {
     static String CFG_KEY_IP_MATCHING_NIC = "ip_matching_nic";
     static String CFG_KEY_USE_SSL = "use_ssl";
     static String CFG_KEY_USER_AUTH = "user_auth";
+    static String CFG_KEY_FILE_SIZE_CHK = "file_size_chk";
 
     static String JAVA_SSL_TRUSTSTORE_PROP = "javax.net.ssl.trustStore";
     static String JAVA_SSL_TRUSTSTORE_PASS_PROP = "javax.net.ssl.trustStorePassword";
@@ -21,6 +22,7 @@ public class DseOpscNFSRestoreUtils {
     static String OPSC_NFS_OBJKEY_BASESTR = "snapshots";
     static String OPSC_NFS_OBJKEY_OPSC_MARKER_STR = "opscenter_adhoc";
     static String OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR = "sstables";
+    static String OPSC_BKUP_METADATA_FILE = "backup.json";
 
     static String CASSANDRA_SSTABLE_FILE_CODE = "mc";
     static int DOWNLOAD_THREAD_POOL_SIZE = 5;
@@ -67,6 +69,7 @@ public class DseOpscNFSRestoreUtils {
             String ipMatchingNic = configProps.getProperty(CFG_KEY_IP_MATCHING_NIC);
             String useSslStr = configProps.getProperty(CFG_KEY_USE_SSL);
             String userAuthStr = configProps.getProperty(CFG_KEY_USER_AUTH);
+            String fileSizeMonStr = configProps.getProperty(CFG_KEY_FILE_SIZE_CHK);
 
             // An active DSE contact point is not a must for all cases. Log a warning message if not specified.
             if ( (dseContactPoint == null) || dseContactPoint.isEmpty() ) {
@@ -108,6 +111,17 @@ public class DseOpscNFSRestoreUtils {
                 }
                 catch (NumberFormatException nfe) {
                     System.out.println("ERROR: Incorrect value for configuration file parameter  \"" + CFG_KEY_USER_AUTH + "\".");
+                    configProps = null;
+                }
+            }
+
+            // When "file_size_mon" is specified, it must be a valid type that can convert to boolean. Otherwise, error out.
+            if ( (fileSizeMonStr != null) && (!fileSizeMonStr.isEmpty()) ) {
+                try {
+                    Boolean.parseBoolean(fileSizeMonStr);
+                }
+                catch (NumberFormatException nfe) {
+                    System.out.println("ERROR: Incorrect value for configuration file parameter  \"" + CFG_KEY_FILE_SIZE_CHK + "\".");
                     configProps = null;
                 }
             }

@@ -5,6 +5,8 @@ import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.dse.DseCluster;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.FileFilterUtils;
+import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.json.simple.JSONArray;
 import org.json.simple.parser.JSONParser;
@@ -20,11 +22,11 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Stream;
 
 
 class NFSObjDownloadRunnable implements  Runnable {
     private int threadID;
+    private boolean fileSizeChk;
     private String downloadHomeDir;
     private String[] opscObjNames;
     private long[] opscObjSizes;
@@ -34,7 +36,8 @@ class NFSObjDownloadRunnable implements  Runnable {
 
     private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    NFSObjDownloadRunnable( int tID,
+    NFSObjDownloadRunnable(int tID,
+                           boolean file_size_chk,
                            String download_dir,
                            String[] object_names,
                            long[] object_sizes,
@@ -44,6 +47,7 @@ class NFSObjDownloadRunnable implements  Runnable {
         assert (tID > 0);
 
         this.threadID = tID;
+        this.fileSizeChk = file_size_chk;
         this.downloadHomeDir = download_dir;
         this.opscObjNames = object_names;
         this.opscObjSizes = object_sizes;
@@ -88,10 +92,12 @@ class NFSObjDownloadRunnable implements  Runnable {
                 downloadedOpscObjNum++;
 
                 System.out.format("     [Thread %d] download of \"%s\" completed \n", threadID,
-                        opscObjNames[i] + "[keyspace: " + keyspaceNames[i] + "; table: " + tableNames[i] + "]");
-                System.out.format("        >>> %d of %d bytes transferred.\n",
-                    localFile.length(),
-                    opscObjSizes[i]);
+                    opscObjNames[i] + " [keyspace: " + keyspaceNames[i] + "; table: " + tableNames[i] + "]");
+                if (fileSizeChk) {
+                    System.out.format("        >>> %d of %d bytes transferred.\n",
+                        localFile.length(),
+                        opscObjSizes[i]);
+                }
             }
             catch ( IOException ioe) {
                 System.out.format("     [Thread %d] download of \"%s\" encounters IO Exception\n", threadID,
@@ -122,6 +128,8 @@ class NFSObjDownloadRunnable implements  Runnable {
     }
 }
 
+
+
 public class DseOpscNFSRestore {
 
     private static Properties CONFIGPROP = null;
@@ -129,297 +137,115 @@ public class DseOpscNFSRestore {
 
 
     /**
-     * List (and download) Opsc backup objects for a specified host
+     * Get the full file path of the "backup.json" file that corresponds
+     * to the specified DSE Host ID and OpsCenter backup time
      *
      * @param hostId
-     * @param download
-     * @param threadNum
-     * @param keyspaceName
-     * @param tableName
      * @param opscBckupTimeGmt
-     * @param clearTargetDownDir
-     * @param noTargetDirStruct
+     * @return
      */
-    static void listDownloadNFSObjForHost(String hostId,
-                                          boolean download,
-                                          int threadNum,
-                                          String keyspaceName,
-                                          String tableName,
-                                          ZonedDateTime opscBckupTimeGmt,
-                                          boolean clearTargetDownDir,
-                                          boolean noTargetDirStruct ) {
-        assert (hostId != null);
-
-        System.out.format("\nList" +
-            (download ? " and download" : "") +
-            " OpsCenter NFS backup items for specified host (%s) ...\n", hostId);
-
-        String downloadHomeDir = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_LOCAL_DOWNLOAD_HOME);
-
-        if (download) {
-            assert (threadNum > 0);
-
-            // If non-existing, create local home directory to hold download files
-            try {
-                File file = new File(downloadHomeDir);
-
-                if ( Files.notExists(file.toPath()))  {
-                    FileUtils.forceMkdir(file);
-                }
-                else {
-                    if (clearTargetDownDir) {
-                        FileUtils.cleanDirectory(file);
-                    }
-                }
-            }
-            catch (IOException ioe) {
-                System.out.println("ERROR: failed to create download home directory for S3 objects!");
-                System.exit(-10);
-            }
-        }
-
-        String basePrefix = CONFIGPROP.get(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
-                DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR + "/" + hostId;
-
-        Map<String, String> opscUniquifierToKsTbls = new HashMap<String, String>();
-
+    static Path getMyBackupJson(String hostId,
+                                ZonedDateTime opscBckupTimeGmt)
+    {
         DateTimeFormatter opscObjTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-z");
         String opscBckupTimeGmtStr = opscBckupTimeGmt.format(opscObjTimeFormatter);
 
+        String nodeHomeDirString =
+            CONFIGPROP.get(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
+            DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR + "/" +
+            hostId;
 
-        // First, check OpsCenter records matching the backup time
-        String opscPrefixString = basePrefix + "/" +
-                DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_OPSC_MARKER_STR + "_";
+        String opscPrefixString = nodeHomeDirString + "/" +
+            DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_OPSC_MARKER_STR + "_";
 
-        for ( Path nfsBkupItem : NFS_BACKUP_FILELIST.keySet() ) {
-            String opscObjName = nfsBkupItem.toFile().getAbsolutePath();
+        Path nodeHomeDirPath = Paths.get(nodeHomeDirString);
 
-            if ( opscObjName.startsWith(opscPrefixString) ) {
-                String opscObjNameShortZeroSecond =
-                        opscObjName.substring(opscPrefixString.length(), opscPrefixString.length() + 16) + "-00-UTC";
+        IOFileFilter fileFilter = FileFilterUtils.nameFileFilter(DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE);
+        IOFileFilter dirFilter = FileFilterUtils.prefixFileFilter(DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_OPSC_MARKER_STR);
 
-                // Only deal with the S3 objects that fall in the specified OpsCenter backup time range
-                if (opscBckupTimeGmtStr.equalsIgnoreCase(opscObjNameShortZeroSecond)) {
-                    // Process OpsCenter backup.json file to get the Keyspace/Table/Unique_Identifier mapping
-                    if (opscObjName.contains("backup.json")) {
-                        // After downloaded the backup.json file, process its content to get mapping between
-                        // Uniquifier to Keyspace-Table.
-                        opscUniquifierToKsTbls = getOpscUniquifierToKsTblMapping(opscObjName);
-                    }
-                }
+        Collection<File> opscBkupJsonFiles =
+            FileUtils.listFiles(nodeHomeDirPath.toFile(), fileFilter, dirFilter);
+
+        Path myBackupJsonFilePath = null;
+
+        for ( File file: opscBkupJsonFiles ) {
+            String absFilePath = file.getAbsolutePath();
+
+            String backupTimeShortZeroSecondStr =
+                absFilePath.substring(opscPrefixString.length(), opscPrefixString.length() + 16) + "-00-UTC";
+
+            if (opscBckupTimeGmtStr.equalsIgnoreCase(backupTimeShortZeroSecondStr)) {
+                myBackupJsonFilePath = file.toPath();
             }
         }
 
-        // Download OpsCenter backup SSTables
-        int numSstableBkupItems = 0;
-
-        //
-        // Start multiple threads to process data ingestion concurrently
-        //
-        ExecutorService executor = Executors.newFixedThreadPool(threadNum);
-
-        // For sstable download - we use mulitple threads per sstable set. One set includes the following files:
-        // > mc-<#>-big-CompresssionInfo.db
-        // > mc-<#>-big-Data.db
-        // > mc-<#>-big-Filter.db
-        // > mc-<#>-big-Index.db
-        // > mc-<#>-big-Statistics.db
-        // > mc-<#>-big-Summary.db
-        final int SSTABLE_SET_FILENUM = 6;
-
-        String[] opscSstableObjKeyNames = new String[SSTABLE_SET_FILENUM];
-        long[] opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
-        String[] opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
-        String[] opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
-
-        int i = 0;
-        int threadId = 0;
-
-        String sstablePrefixString = basePrefix + "/" +
-                DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR;
-
-        for ( Path nfsBkupItem : NFS_BACKUP_FILELIST.keySet() ) {
-            String opscObjName = nfsBkupItem.toFile().getAbsolutePath();
-
-            if ( opscObjName.startsWith(sstablePrefixString) ) {
-                String sstableObjName = opscObjName.substring(opscObjName.lastIndexOf("/") + 1);
-
-                if (opscUniquifierToKsTbls.containsKey(sstableObjName)) {
-
-                    String[] ksTblUniquifer = opscUniquifierToKsTbls.get(sstableObjName).split(":");
-                    String ks = ksTblUniquifer[0];
-                    String tbl = ksTblUniquifer[1];
-
-                    boolean filterKsTbl = keyspaceName.equalsIgnoreCase(ks);
-                    if ((tableName != null) && !tableName.isEmpty()) {
-                        filterKsTbl = filterKsTbl && tableName.equalsIgnoreCase(tbl);
-                    }
-
-                    if (filterKsTbl) {
-                        numSstableBkupItems++;
-                        System.out.println("  - " + opscObjName + " (size = " + NFS_BACKUP_FILELIST.get(nfsBkupItem)
-                                + " bytes) [keyspace: " + ks + "; table: " + tbl + "]");
-
-                        opscSstableObjKeyNames[i % SSTABLE_SET_FILENUM] = opscObjName;
-                        opscSstableObjKeySizes[i % SSTABLE_SET_FILENUM] = NFS_BACKUP_FILELIST.get(nfsBkupItem);
-                        opscSstableKSNames[i % SSTABLE_SET_FILENUM] = ks;
-                        opscSstableTBLNames[i % SSTABLE_SET_FILENUM] = tbl;
-
-                        if (download) {
-                            if ((i > 0) && ((i + 1) % SSTABLE_SET_FILENUM == 0)) {
-                                Runnable worker = new NFSObjDownloadRunnable(
-                                        threadId,
-                                        downloadHomeDir,
-                                        opscSstableObjKeyNames,
-                                        opscSstableObjKeySizes,
-                                        opscSstableKSNames,
-                                        opscSstableTBLNames,
-                                        noTargetDirStruct);
-
-                                threadId++;
-
-                                opscSstableObjKeyNames = new String[SSTABLE_SET_FILENUM];
-                                opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
-                                opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
-                                opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
-
-                                executor.execute(worker);
-                            }
-
-                            i++;
-                        }
-                    }
-                }
-            }
-        }
-
-        if ( download && ( threadId  < (numSstableBkupItems / SSTABLE_SET_FILENUM) ) ) {
-            Runnable worker = new NFSObjDownloadRunnable(
-                threadId,
-                downloadHomeDir,
-                opscSstableObjKeyNames,
-                opscSstableObjKeySizes,
-                opscSstableKSNames,
-                opscSstableTBLNames,
-                noTargetDirStruct);
-
-            executor.execute(worker);
-        }
-
-        executor.shutdown();
-
-        while (!executor.isTerminated()) {
-        }
-
-        if (numSstableBkupItems == 0) {
-            System.out.println("  - Found no matching backup records for the specified conditions!.");
-        }
-
-        System.out.println("\n");
+        return myBackupJsonFilePath;
     }
 
-
     /**
-     * Get the local host IP (non 127.0.0.1)
+     * Get file size of a file
      *
-     * @param nicName
+     * @param filePath
      * @return
      */
-    static String getLocalIP(String nicName) {
-
-        String localhostIp = null;
+    static long getFileSize(Path filePath) {
+        long size = 0;
 
         try {
-            localhostIp = InetAddress.getLocalHost().getHostAddress();
-            // Testing Purpose
-            //localhostIp = "10.240.0.6";
-
-            if ( (localhostIp != null) && (localhostIp.startsWith("127.0")) ) {
-
-                NetworkInterface nic = NetworkInterface.getByName(nicName);
-                Enumeration<InetAddress> inetAddress = nic.getInetAddresses();
-
-                localhostIp = inetAddress.nextElement().getHostAddress();
-            }
+            size = Files.size(filePath);
         }
-        catch (Exception e) { }
+        catch ( IOException ioe) {
+        }
 
-        return localhostIp;
+        return size;
     }
-
 
     /**
-     * List (and download) Opsc backup objects for myself - the host that runs this program
+     * Recursively get all files and their sizes under a specified directory
+     * ------------------------------
+     * NOTE: for large cluster with recurring backup items, scanning through
+     *       the entire backup directory could be expensive.
      *
-     * @param dseClusterMetadata
-     * @param download
-     * @param threadNum
-     * @param hostIDStr
-     * @param keyspaceName
-     * @param tableName
-     * @param opscBckupTimeGmt
-     * @param clearTargetDownDir
-     * @param noTargetDirStruct
+     *       This method is retired. Instead, we should use the new methods
+     *       of fetching the right backup file list from corresponding backup.json
+     *       metadata file.
+     * ------------------------------
+     *
+     * @param dirPath
+     * @param fileSizeChk
+     * @return
      */
-    static void listDownloadNFSObjForMe(Metadata dseClusterMetadata,
-                                       boolean download,
-                                       int threadNum,
-                                       String hostIDStr,
-                                       String keyspaceName,
-                                       String tableName,
-                                       ZonedDateTime opscBckupTimeGmt,
-                                       boolean clearTargetDownDir,
-                                       boolean noTargetDirStruct) {
-        String myHostId = hostIDStr;
+    static Map<Path, Long> listFilesForDir(Path dirPath,
+                                           boolean fileSizeChk) {
+        assert ( dirPath != null );
 
-        if ( (hostIDStr == null) || (hostIDStr.isEmpty()) ) {
+        //Map<Path, Long> paths = new LinkedHashMap<>();
+        Map<Path, Long> paths = new TreeMap<>();
 
-            String localhostIp = getLocalIP(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_IP_MATCHING_NIC));
+        /**
+         * Oracle Java 8 File stream API implementation
+         * ------------------------------------
+         try ( Stream<Path> stream = Files.walk(dirPath) ) {
+         stream.filter( p -> !p.toFile().isDirectory())
+         .forEach( p -> paths.put(p, getFileSize(p)) );
+         }
+         catch ( IOException ioe ) {
+         ioe.printStackTrace();
+         }
+         */
 
-            if (localhostIp == null) {
-                System.out.println("\nERROR: failed to get local host IP address!");
-                return;
-            }
+        /**
+         * Apache commons API
+         */
 
-            boolean foundMatchingHost = false;
-            for (Host host : dseClusterMetadata.getAllHosts()) {
-                InetAddress listen_address = host.getListenAddress();
-                String listen_address_ip = (listen_address != null) ? listen_address.getHostAddress() : "";
-
-                InetAddress broadcast_address = host.getBroadcastAddress();
-                String broadcast_address_ip = (broadcast_address != null) ? broadcast_address.getHostAddress() : "";
-
-                //System.out.println("listen_address: " + listen_address_ip);
-                //System.out.println("broadcast_address: " + broadcast_address_ip + "\n");
-
-                if (localhostIp.equals(listen_address_ip) || localhostIp.equals(broadcast_address_ip)) {
-                    myHostId = host.getHostId().toString();
-                    foundMatchingHost = true;
-                    break;
-                }
-            }
-
-            if (!foundMatchingHost) {
-                System.out.format("\nERROR: Failed to match my DSE host address by IP (NIC Name: %s; NIC IP: %s)!\n",
-                    CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_IP_MATCHING_NIC),
-                    localhostIp);
-            }
+        Collection<File> files = FileUtils.listFiles(dirPath.toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE);
+        for ( File file: files ) {
+            Path path= file.toPath();
+            paths.put(path, (!fileSizeChk ? 0 : getFileSize(path)));
         }
 
-        if ( myHostId != null && !myHostId.isEmpty() ) {
-            listDownloadNFSObjForHost(
-                myHostId,
-                download,
-                threadNum,
-                keyspaceName,
-                tableName,
-                opscBckupTimeGmt,
-                clearTargetDownDir,
-                noTargetDirStruct
-            );
-        }
+        return paths;
     }
-
 
     /**
      * Get mapping from "unique_identifier" to "keyspace:table"
@@ -483,71 +309,340 @@ public class DseOpscNFSRestore {
 
 
     /**
-     * Get file size of a file
+     * Get the local host IP (non 127.0.0.1)
      *
-     * @param filePath
+     * @param nicName
      * @return
      */
-    static long getFileSize(Path filePath) {
-        long size = 0;
+    static String getLocalIP(String nicName) {
+
+        String localhostIp = null;
 
         try {
-            size = Files.size(filePath);
-        }
-        catch ( IOException ioe) {
-        }
+            localhostIp = InetAddress.getLocalHost().getHostAddress();
+            // Testing Purpose
+            //localhostIp = "10.240.0.6";
 
-        return size;
+            if ( (localhostIp != null) && (localhostIp.startsWith("127.0")) ) {
+
+                NetworkInterface nic = NetworkInterface.getByName(nicName);
+                Enumeration<InetAddress> inetAddress = nic.getInetAddresses();
+
+                localhostIp = inetAddress.nextElement().getHostAddress();
+            }
+        }
+        catch (Exception e) { }
+
+        return localhostIp;
     }
+
     /**
-     * Recursively get all files and their sizes under a specified directory
+     * Find my DSE host ID by checking with DSE cluster
      *
-     * @param dirPath
+     * @param dseClusterMetadata
      * @return
      */
-    static Map<Path, Long> listFilesForDir(Path dirPath) {
-        assert ( dirPath != null );
+    static String findMyHostID(Metadata dseClusterMetadata) {
+        assert (dseClusterMetadata != null);
 
-        //Map<Path, Long> paths = new LinkedHashMap<>();
-        final Map<Path, Long> paths = new TreeMap<>();
+        String myHostId = null;
 
-        /**
-         * Oracle Java 8 File stream API implementation
-         * ------------------------------------
-        try ( Stream<Path> stream = Files.walk(dirPath) ) {
-            stream.filter( p -> !p.toFile().isDirectory())
-                  .forEach( p -> paths.put(p, getFileSize(p)) );
+        String localhostIp = getLocalIP(CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_IP_MATCHING_NIC));
+
+        if (localhostIp == null) {
+            System.out.println("\nERROR: failed to get local host IP address!");
         }
-        catch ( IOException ioe ) {
-            ioe.printStackTrace();
-        }
-        */
+        else {
+            boolean foundMatchingHost = false;
+            for (Host host : dseClusterMetadata.getAllHosts()) {
+                InetAddress listen_address = host.getListenAddress();
+                String listen_address_ip = (listen_address != null) ? listen_address.getHostAddress() : "";
 
-        /**
-         * Apache commons API
-         */
-        Collection<File> files = FileUtils.listFiles(dirPath.toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE);
-        for ( File file: files ) {
-            Path path= file.toPath();
-            paths.put(path, getFileSize(path));
+                InetAddress broadcast_address = host.getBroadcastAddress();
+                String broadcast_address_ip = (broadcast_address != null) ? broadcast_address.getHostAddress() : "";
+
+                //System.out.println("listen_address: " + listen_address_ip);
+                //System.out.println("broadcast_address: " + broadcast_address_ip + "\n");
+
+                if (localhostIp.equals(listen_address_ip) || localhostIp.equals(broadcast_address_ip)) {
+                    myHostId = host.getHostId().toString();
+                    foundMatchingHost = true;
+                    break;
+                }
+            }
+
+            if (!foundMatchingHost) {
+                System.out.format("\nERROR: Failed to match my DSE host address by IP (NIC Name: %s; NIC IP: %s)!\n",
+                        CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_IP_MATCHING_NIC),
+                        localhostIp);
+            }
         }
 
-        return paths;
+        return myHostId;
     }
 
+
+    /**
+     * List (and download) Opsc backup objects for a specified host
+     *
+     * @param fileSizeChk
+     * @param hostId
+     * @param download
+     * @param threadNum
+     * @param keyspaceName
+     * @param tableName
+     * @param opscBckupTimeGmt
+     * @param clearTargetDownDir
+     * @param noTargetDirStruct
+     */
+    static void listDownloadNFSObjForHost(boolean fileSizeChk,
+                                          String hostId,
+                                          boolean download,
+                                          int threadNum,
+                                          String keyspaceName,
+                                          String tableName,
+                                          ZonedDateTime opscBckupTimeGmt,
+                                          boolean clearTargetDownDir,
+                                          boolean noTargetDirStruct )
+    {
+        assert (hostId != null);
+
+        System.out.format("\nList" +
+            (download ? " and download" : "") +
+            " OpsCenter NFS backup items for specified host (%s) ...\n", hostId);
+
+        String downloadHomeDir = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_LOCAL_DOWNLOAD_HOME);
+
+        if (download) {
+            assert (threadNum > 0);
+
+            // If non-existing, create local home directory to hold download files
+            try {
+                File file = new File(downloadHomeDir);
+
+                if ( Files.notExists(file.toPath()))  {
+                    FileUtils.forceMkdir(file);
+                }
+                else {
+                    if (clearTargetDownDir) {
+                        FileUtils.cleanDirectory(file);
+                    }
+                }
+            }
+            catch (IOException ioe) {
+                System.out.println("ERROR: Failed to create download home directory for OpsCenter backup objects!");
+                return;
+            }
+        }
+
+        Map<String, String> opscUniquifierToKsTbls = new HashMap<String, String>();
+
+        Path myBackupJsonFilePath = getMyBackupJson(hostId, opscBckupTimeGmt);
+
+        if (myBackupJsonFilePath == null) {
+            DateTimeFormatter opscObjTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-z");
+            String opscBckupTimeGmtStr = opscBckupTimeGmt.format(opscObjTimeFormatter);
+
+            System.out.format("ERROR: Failed to find %s file for host (%s) at backup time (%s)\n",
+                DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE,
+                hostId,
+                opscBckupTimeGmtStr);
+
+            return;
+        }
+        else {
+            opscUniquifierToKsTbls =
+                getOpscUniquifierToKsTblMapping(myBackupJsonFilePath.toFile().getAbsolutePath());
+        }
+
+
+        if ( opscUniquifierToKsTbls.isEmpty() ) {
+            System.out.println("ERROR: Failed to find get backup SSTable file list from " +
+                    DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE + " file!");
+            return;
+        }
+
+
+        // Download OpsCenter backup SSTables
+        int numSstableBkupItems = 0;
+
+        //
+        // Start multiple threads to process data ingestion concurrently
+        //
+        ExecutorService executor = Executors.newFixedThreadPool(threadNum);
+
+        // For sstable download - we use mulitple threads per sstable set. One set includes the following files:
+        // > mc-<#>-big-CompresssionInfo.db
+        // > mc-<#>-big-Data.db
+        // > mc-<#>-big-Filter.db
+        // > mc-<#>-big-Index.db
+        // > mc-<#>-big-Statistics.db
+        // > mc-<#>-big-Summary.db
+        final int SSTABLE_SET_FILENUM = 6;
+
+        String[] opscSstableObjKeyNames = new String[SSTABLE_SET_FILENUM];
+        long[] opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
+        String[] opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
+        String[] opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
+
+        int i = 0;
+        int threadId = 0;
+
+        String sstablePrefixString =
+            CONFIGPROP.get(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
+            DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR + "/" +
+            hostId + "/" +
+            DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR;
+
+
+        for ( String sstableObjName : opscUniquifierToKsTbls.keySet() )  {
+
+            String opscObjName = sstablePrefixString + "/" + sstableObjName;
+
+            String[] ksTblUniquifer = opscUniquifierToKsTbls.get(sstableObjName).split(":");
+            String ks = ksTblUniquifer[0];
+            String tbl = ksTblUniquifer[1];
+
+            boolean filterKsTbl = keyspaceName.equalsIgnoreCase(ks);
+            if ((tableName != null) && !tableName.isEmpty()) {
+                filterKsTbl = filterKsTbl && tableName.equalsIgnoreCase(tbl);
+            }
+
+            if (filterKsTbl) {
+                numSstableBkupItems++;
+
+                long opscObjSize = 0;
+                if (fileSizeChk) {
+                    try {
+                        opscObjSize = Files.size(Paths.get(opscObjName));
+                    }
+                    catch (IOException ioe) {
+                        opscObjSize = -1;
+                    }
+                }
+
+                System.out.println("  - " + opscObjName +
+                    ( !fileSizeChk ? "" : (" (size = " + opscObjSize + " bytes)") ) +
+                    " [keyspace: " + ks + "; table: " + tbl + "]");
+
+                opscSstableObjKeyNames[i % SSTABLE_SET_FILENUM] = opscObjName;
+                opscSstableObjKeySizes[i % SSTABLE_SET_FILENUM] = opscObjSize;
+                opscSstableKSNames[i % SSTABLE_SET_FILENUM] = ks;
+                opscSstableTBLNames[i % SSTABLE_SET_FILENUM] = tbl;
+
+                if (download) {
+                    if ((i > 0) && ((i + 1) % SSTABLE_SET_FILENUM == 0)) {
+                        Runnable worker = new NFSObjDownloadRunnable(
+                            threadId,
+                            fileSizeChk,
+                            downloadHomeDir,
+                            opscSstableObjKeyNames,
+                            opscSstableObjKeySizes,
+                            opscSstableKSNames,
+                            opscSstableTBLNames,
+                            noTargetDirStruct);
+
+                        threadId++;
+
+                        opscSstableObjKeyNames = new String[SSTABLE_SET_FILENUM];
+                        opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
+                        opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
+                        opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
+
+                        executor.execute(worker);
+                    }
+
+                    i++;
+                }
+            }
+        }
+
+        if ( download && ( threadId  < (numSstableBkupItems / SSTABLE_SET_FILENUM) ) ) {
+            Runnable worker = new NFSObjDownloadRunnable(
+                threadId,
+                fileSizeChk,
+                downloadHomeDir,
+                opscSstableObjKeyNames,
+                opscSstableObjKeySizes,
+                opscSstableKSNames,
+                opscSstableTBLNames,
+                noTargetDirStruct);
+
+            executor.execute(worker);
+        }
+
+        executor.shutdown();
+
+        while (!executor.isTerminated()) {
+        }
+
+        if (numSstableBkupItems == 0) {
+            System.out.println("  - Found no matching backup records for the specified conditions!.");
+        }
+
+        System.out.println("\n");
+    }
+
+    /**
+     * List (and download) Opsc backup objects for myself - the host that runs this program
+     *
+     * @param dseClusterMetadata
+     * @param fileSizeChk
+     * @param download
+     * @param threadNum
+     * @param hostIDStr
+     * @param keyspaceName
+     * @param tableName
+     * @param opscBckupTimeGmt
+     * @param clearTargetDownDir
+     * @param noTargetDirStruct
+     */
+    static void listDownloadNFSObjForMe(Metadata dseClusterMetadata,
+                                        boolean fileSizeChk,
+                                        boolean download,
+                                        int threadNum,
+                                        String hostIDStr,
+                                        String keyspaceName,
+                                        String tableName,
+                                        ZonedDateTime opscBckupTimeGmt,
+                                        boolean clearTargetDownDir,
+                                        boolean noTargetDirStruct) {
+        String myHostId = hostIDStr;
+
+        // When not providing DSE host ID explicitly, find it by checking with DSE cluster
+        if ( (hostIDStr == null) || (hostIDStr.isEmpty()) ) {
+            myHostId = findMyHostID(dseClusterMetadata);
+        }
+
+        if ( myHostId != null && !myHostId.isEmpty() ) {
+            listDownloadNFSObjForHost(
+                fileSizeChk,
+                myHostId,
+                download,
+                threadNum,
+                keyspaceName,
+                tableName,
+                opscBckupTimeGmt,
+                clearTargetDownDir,
+                noTargetDirStruct
+            );
+        }
+    }
 
     /**
      * List Opsc backup objects for all DSE cluster hosts
      *
      * @param dseClusterMetadata
+     * @param fileSizeChk
      * @param keyspaceName
      * @param tableName
      * @param opscBckupTimeGmt
      */
     static void listNFSObjtForCluster(Metadata dseClusterMetadata,
-                                     String keyspaceName,
-                                     String tableName,
-                                     ZonedDateTime opscBckupTimeGmt) {
+                                      boolean fileSizeChk,
+                                      String keyspaceName,
+                                      String tableName,
+                                      ZonedDateTime opscBckupTimeGmt) {
 
         System.out.format("\nList OpsCenter NFS backup items for DSE cluster (%s) [%s] ...\n",
                 dseClusterMetadata.getClusterName(),
@@ -556,23 +651,25 @@ public class DseOpscNFSRestore {
                         "Table - " + keyspaceName + ":" + tableName
         );
 
-        listNFSObjForDC(dseClusterMetadata, "", keyspaceName, tableName, opscBckupTimeGmt);
+        listNFSObjForDC(dseClusterMetadata, fileSizeChk, "", keyspaceName, tableName, opscBckupTimeGmt);
     }
 
     /**
      * List Opsc backup objects for all hosts in a specified DC
      *
      * @param dseClusterMetadata
-     * @param dcName
+     * @param fileSizeChk
      * @param keyspaceName
+     * @param dcName
      * @param tableName
      * @param opscBckupTimeGmt
      */
     static void listNFSObjForDC(Metadata dseClusterMetadata,
-                               String dcName,
-                               String keyspaceName,
-                               String tableName,
-                               ZonedDateTime opscBckupTimeGmt) {
+                                boolean fileSizeChk,
+                                String dcName,
+                                String keyspaceName,
+                                String tableName,
+                                ZonedDateTime opscBckupTimeGmt) {
         assert (CONFIGPROP != null);
         assert ( (keyspaceName != null) && !keyspaceName.isEmpty() );
         assert (opscBckupTimeGmt != null);
@@ -603,62 +700,77 @@ public class DseOpscNFSRestore {
                 System.out.format("  Items for Host %s (rack: %s, DC: %s) ...\n",
                     host_id, rack_name, dc_name, dseClusterMetadata.getClusterName());
 
-                String basePrefix = CONFIGPROP.get(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
-                        DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR + "/" + host_id;
 
-                Map<String, String> opscUniquifierToKsTbls = new HashMap<String, String>();
+                // First. get the backup.json file corresponds to the specified host and backup time
 
-                DateTimeFormatter opscObjTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-z");
-                String opscBckupTimeGmtStr = opscBckupTimeGmt.format(opscObjTimeFormatter);
+                Map<String, String> opscUniquifierToKsTbls = new HashMap<>();
 
-                // First, check OpsCenter records matching the backup time
-                String opscPrefixString = basePrefix + "/" +
-                        DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_OPSC_MARKER_STR + "_";
+                Path myBackupJsonFilePath = getMyBackupJson(host_id, opscBckupTimeGmt);
 
-                for ( Path nfsBkupItem : NFS_BACKUP_FILELIST.keySet() ) {
-                    String opscObjName = nfsBkupItem.toFile().getAbsolutePath();
+                if (myBackupJsonFilePath == null) {
+                    DateTimeFormatter opscObjTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-z");
+                    String opscBckupTimeGmtStr = opscBckupTimeGmt.format(opscObjTimeFormatter);
 
-                    if ( opscObjName.startsWith(opscPrefixString) ) {
-                        String opscObjNameShortZeroSecond =
-                                opscObjName.substring(opscPrefixString.length(), opscPrefixString.length() + 16) + "-00-UTC";
+                    System.out.format("    ERROR: Failed to find %s file for host (%s) at backup time (%s)\n",
+                        DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE,
+                        host_id,
+                        opscBckupTimeGmtStr);
 
-                        // Only deal with the backup objects that fall in the specified OpsCenter backup time range
-                        if (opscBckupTimeGmtStr.equalsIgnoreCase(opscObjNameShortZeroSecond)) {
-                            // Process OpsCenter backup.json file to get the Keyspace/Table/Unique_Identifier mapping
-                            if (opscObjName.contains("backup.json")) {
-                                // After downloaded the backup.json file, process its content to get mapping between
-                                // Unique_identifier to Keyspace-Table.
-                                opscUniquifierToKsTbls = getOpscUniquifierToKsTblMapping(opscObjName);
-                            }
-                        }
-                    }
+                    continue;
+                }
+                else {
+                    opscUniquifierToKsTbls =
+                        getOpscUniquifierToKsTblMapping(myBackupJsonFilePath.toFile().getAbsolutePath());
                 }
 
+
+                if ( opscUniquifierToKsTbls.isEmpty() ) {
+                    System.out.println("    ERROR: Failed to find get backup SSTable file list from " +
+                        DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE + " file!");
+
+                    continue;
+                }
+
+
                 // Second, check SSTables records matching the backup time, keyspace, and table
-                String sstablePrefixString = basePrefix + "/" +
-                        DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR;
 
-                for ( Path nfsBkupItem : NFS_BACKUP_FILELIST.keySet() ) {
-                    String opscObjName = nfsBkupItem.toFile().getAbsolutePath();
+                String sstablePrefixString =
+                    CONFIGPROP.get(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
+                    DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR + "/" +
+                    host_id + "/" +
+                    DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR;
 
-                    if ( opscObjName.startsWith(sstablePrefixString) ) {
-                        String sstableObjName = opscObjName.substring(opscObjName.lastIndexOf("/") + 1);
 
-                        if (opscUniquifierToKsTbls.containsKey(sstableObjName)) {
-                            String[] ksTblUniquifer = opscUniquifierToKsTbls.get(sstableObjName).split(":");
-                            String ks = ksTblUniquifer[0];
-                            String tbl = ksTblUniquifer[1];
+                for ( String sstableObjName : opscUniquifierToKsTbls.keySet() )  {
 
-                            boolean filterKsTbl = keyspaceName.equalsIgnoreCase(ks);
-                            if ((tableName != null) && !tableName.isEmpty()) {
-                                filterKsTbl = filterKsTbl && tableName.equalsIgnoreCase(tbl);
+                    String opscObjName = sstablePrefixString + "/" + sstableObjName;
+
+                    if (opscUniquifierToKsTbls.containsKey(sstableObjName)) {
+                        String[] ksTblUniquifer = opscUniquifierToKsTbls.get(sstableObjName).split(":");
+                        String ks = ksTblUniquifer[0];
+                        String tbl = ksTblUniquifer[1];
+
+                        boolean filterKsTbl = keyspaceName.equalsIgnoreCase(ks);
+                        if ((tableName != null) && !tableName.isEmpty()) {
+                            filterKsTbl = filterKsTbl && tableName.equalsIgnoreCase(tbl);
+                        }
+
+                        if (filterKsTbl) {
+                            numSstableBkupItems++;
+
+                            long opscObjSize = 0;
+                            if (fileSizeChk) {
+                                try {
+                                    opscObjSize = Files.size(Paths.get(opscObjName));
+                                }
+                                catch (IOException ioe) {
+                                    opscObjSize = -1;
+                                }
                             }
 
-                            if (filterKsTbl) {
-                                numSstableBkupItems++;
-                                System.out.println("  - " + opscObjName + " (size = " + NFS_BACKUP_FILELIST.get(nfsBkupItem)
-                                        + " bytes) [keyspace: " + ks + "; table: " + tbl + "]");
-                            }
+                            System.out.println("  - " + opscObjName +
+                                ( !fileSizeChk ? "" : (" (size = " + opscObjSize + " bytes)") ) +
+                                " [keyspace: " + ks + "; table: " + tbl + "]");
                         }
                     }
                 }
@@ -980,7 +1092,7 @@ public class DseOpscNFSRestore {
             usageAndExit(100);
         }
 
-        // Check whether "use_ssl" config file parameter is true.
+        // Check whether "use_ssl" config file parameter is true (default false).
         // - If so, java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be set.
         boolean useSsl = false;
         String useSslStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL);
@@ -1003,7 +1115,7 @@ public class DseOpscNFSRestore {
             }
         }
 
-        // Check whether "user_auth" config file parameter is true.
+        // Check whether "user_auth" config file parameter is true (default false).
         // - If so, command line parameter "-u (--user)" and "-p (--password)" must be set.
         boolean userAuth = false;
         String userAuthStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL);
@@ -1020,6 +1132,13 @@ public class DseOpscNFSRestore {
             }
         }
 
+        // Check whether "file_size_mon" config file parameter is true (default false).
+        boolean fileSizeChk = false;
+        String fileSizeMonStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_FILE_SIZE_CHK);
+        if ( (fileSizeMonStr != null) && !(fileSizeMonStr.isEmpty()) ) {
+            fileSizeChk = Boolean.parseBoolean(fileSizeMonStr);
+        }
+
 
         /**
          * Check if NFS backup home directory is reachable! Otherwise, list files under it.
@@ -1032,12 +1151,18 @@ public class DseOpscNFSRestore {
             usageAndExit(110);
         }
 
+        /**
+         * Retired code - scanning through the entire backup folder for
+         *                a large cluster and/or frequent backup can be
+         *                expensive
+         * ---------------------------------
         // List the files (recursively) under the NFS backup home directory
-        NFS_BACKUP_FILELIST = listFilesForDir(nfsBackupHomePath);
+        NFS_BACKUP_FILELIST = listFilesForDir(nfsBackupHomePath, fileSizeChk);
         if ( ( NFS_BACKUP_FILELIST == null) || ( NFS_BACKUP_FILELIST.isEmpty() ) ) {
             System.out.println("\nERROR: [Config File] Specified NFS OpsCenter backup home directory doesn't have any file contents in it!");
             usageAndExit(115);
         }
+        */
 
         /**
          * If the specified download home directory already exists,
@@ -1116,16 +1241,28 @@ public class DseOpscNFSRestore {
 
         // List OpsCenter backup SSTables for all Dse Cluster hosts
         if ( listCluster ) {
-            listNFSObjtForCluster(dseClusterMetadata, keyspaceName, tableName, opscBackupTime_gmt);
+            listNFSObjtForCluster(
+                dseClusterMetadata,
+                fileSizeChk,
+                keyspaceName,
+                tableName,
+                opscBackupTime_gmt);
         }
         // List OpsCenter backup SSTables for all hosts in a specified DC of the Dse cluster
         else if ( listDC ) {
-            listNFSObjForDC(dseClusterMetadata, dcNameToList, keyspaceName, tableName, opscBackupTime_gmt);
+            listNFSObjForDC(
+                dseClusterMetadata,
+                fileSizeChk,
+                dcNameToList,
+                keyspaceName,
+                tableName,
+                opscBackupTime_gmt);
         }
         // List (and download) OpsCenter backup SSTables for myself (the host that runs this program)
         else if ( listMe ) {
             listDownloadNFSObjForMe(
                 dseClusterMetadata,
+                fileSizeChk,
                 downloadOpscObj,
                 downloadOpscObjThreadNum,
                 myHostID,
