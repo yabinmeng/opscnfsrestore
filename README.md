@@ -41,7 +41,7 @@ In order to use this utility, please take the following steps:
 java 
   [-Djavax.net.ssl.trustStore=<client_truststore>] 
   [-Djavax.net.ssl.trustStorePassword=<client_truststore_password>]
-  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -jar ./opscnfsrestore-3.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
   -c <opsc_nfs_configure.properties_full_path> 
   -d <concurrent_downloading_thread_num> 
