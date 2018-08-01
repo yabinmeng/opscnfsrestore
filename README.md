@@ -157,6 +157,7 @@ nfs_backup_home: <absolute_path_of_NFS_backup_location>
 ip_matching_nic: <NIC_name_for_IP_matching>
 use_ssl: <true | false>
 user_auth: <true | false>
+file_size_chk: <true | false>
 ```
 Most of these items are straightforward and I'll explain some of them a little bit more.
 
@@ -169,6 +170,8 @@ Most of these items are straightforward and I'll explain some of them a little b
 * "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled. When true, Java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be provided.
 
 * "user_auth" is ONLY relevant when DSE authentication is enabled. When true, "-u <cassandra_user_name>" and "-p <cassandra_user_password>" options must be provided.
+
+* "file_size_chk": Whether to bypass backup file size check during the download. When setting to false (default), the utility doesn't check and display file size for each to-be-restored backup files. This can be beneficial for overall performance.
 
 ## 2.3. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
