@@ -41,7 +41,7 @@ In order to use this utility, please take the following steps:
 java 
   [-Djavax.net.ssl.trustStore=<client_truststore>] 
   [-Djavax.net.ssl.trustStorePassword=<client_truststore_password>]
-  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -jar ./opscnfsrestore-3.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -l <all|DC:"<DC_name>"|>me[:"<dsenode_host_id_string>"]> 
   -c <opsc_nfs_configure.properties_full_path> 
   -d <concurrent_downloading_thread_num> 
@@ -157,6 +157,7 @@ nfs_backup_home: <absolute_path_of_NFS_backup_location>
 ip_matching_nic: <NIC_name_for_IP_matching>
 use_ssl: <true | false>
 user_auth: <true | false>
+file_size_chk: <true | false>
 ```
 Most of these items are straightforward and I'll explain some of them a little bit more.
 
@@ -169,6 +170,8 @@ Most of these items are straightforward and I'll explain some of them a little b
 * "use_ssl" is ONLY relevant when DSE client-to-node SSL/TLS encryption is enabled. When true, Java system properties "-Djavax.net.ssl.trustStore" and "-Djavax.net.ssl.trustStorePassword" must be provided.
 
 * "user_auth" is ONLY relevant when DSE authentication is enabled. When true, "-u <cassandra_user_name>" and "-p <cassandra_user_password>" options must be provided.
+
+* "file_size_chk": Whether to bypass backup file size check during the download. When setting to false (default), the utility doesn't check and display file size for each to-be-restored backup files. This can be beneficial for overall performance.
 
 ## 2.3. Filter OpsCenter backup SSTables by keyspace, table, and backup_time
 
@@ -233,7 +236,7 @@ An example is demonstrated below.
 1. List **Only** OpsCenter backup SSTables for all nodes in a cluster that belong to C* table "testks.songs" (<keyspace.table>) for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
-  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-3.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties
   -l all 
   -k testks 
@@ -246,7 +249,7 @@ java
 java 
   -Djavax.net.ssl.trustStore=<path_to_client_truststore>
   -Djavax.net.ssl.trustStorePassword=<password_to_client_truststore>
-  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-3.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties
   -l all 
   -k testks 
@@ -259,7 +262,7 @@ java
 3. List **Only** OpsCenter backup SSTables for the current node that runs this program and belong to C* keyspace "testks1" for the backup taken at 7/17/2018 10:02 PM
 ```
 java 
-  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
+  -jar ./opscnfsrestore-3.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore 
   -c ./opsc_nfs_config.properties
   -l me
   -k testks1 
@@ -269,7 +272,7 @@ java
 4. List and **Download** (with concurrent downloading thread number 5) OpsCenter backup SSTables for a particular node that runs this program and belong to C* keyspace "testks" for the backup taken at 7/17/2018 10:02 PM. Local download home directory is configured in "opsc_nfs_config.properties" file and will be cleared before downloading.
 ```
 java 
-  -jar ./opscnfsrestore-2.1-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
+  -jar ./opscnfsrestore-3.0-SNAPSHOT.jar com.dsetools.DseOpscNFSRestore
   -c ./opsc_nfs_config.properties 
   -l me:"74c08172-9870-4dcc-9a7e-48bddfcc8572" 
   -d 5
