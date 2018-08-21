@@ -20,7 +20,8 @@ public class DseOpscNFSRestoreUtils {
     static String JAVA_SSL_TRUSTSTORE_PASS_PROP = "javax.net.ssl.trustStorePassword";
 
     static String OPSC_NFS_OBJKEY_BASESTR = "snapshots";
-    static String OPSC_NFS_OBJKEY_OPSC_MARKER_STR = "opscenter_adhoc";
+    static String OPSC_NFS_OBJKEY_OPSC_MARKER_STR = "opscenter";
+    static String OPSC_NFS_OBJKEY_OPSC_ADHOC_MARKER_STR = OPSC_NFS_OBJKEY_OPSC_MARKER_STR + "_adhoc";
     static String OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR = "sstables";
     static String OPSC_BKUP_METADATA_FILE = "backup.json";
 
