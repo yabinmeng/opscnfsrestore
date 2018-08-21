@@ -25,7 +25,6 @@ public class DseOpscNFSRestoreUtils {
     static String OPSC_NFS_OBJKEY_SSTABLES_MARKER_STR = "sstables";
     static String OPSC_BKUP_METADATA_FILE = "backup.json";
 
-    static String CASSANDRA_SSTABLE_FILE_CODE = "mc";
     static int DOWNLOAD_THREAD_POOL_SIZE = 5;
 
     static String CMD_OPTION_HELP_SHORT = "h";

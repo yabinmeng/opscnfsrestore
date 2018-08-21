@@ -32,6 +32,7 @@ class NFSObjDownloadRunnable implements  Runnable {
     private long[] opscObjSizes;
     private String[] keyspaceNames;
     private String[] tableNames;
+    private String[] sstableVersions;
     private boolean noTargetDirStruct;
 
     private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -43,6 +44,7 @@ class NFSObjDownloadRunnable implements  Runnable {
                            long[] object_sizes,
                            String[] ks_names,
                            String[] tbl_names,
+                           String[] sstable_versions,
                            boolean no_dir_struct ) {
         assert (tID > 0);
 
@@ -53,6 +55,7 @@ class NFSObjDownloadRunnable implements  Runnable {
         this.opscObjSizes = object_sizes;
         this.keyspaceNames = ks_names;
         this.tableNames = tbl_names;
+        this.sstableVersions = sstable_versions;
         this.noTargetDirStruct = no_dir_struct;
 
         System.out.format("  Creating thread with ID %d (%d).\n", threadID, opscObjNames.length);
@@ -70,10 +73,10 @@ class NFSObjDownloadRunnable implements  Runnable {
 
         for ( int i = 0; i < opscObjNames.length; i++ ) {
             try {
-                int mcFlagStartPos = opscObjNames[i].indexOf(DseOpscNFSRestoreUtils.CASSANDRA_SSTABLE_FILE_CODE);
-                String realSStableName = opscObjNames[i].substring(mcFlagStartPos);
+                int sstblVersionStartPos = opscObjNames[i].indexOf(sstableVersions[i]);
+                String realSStableName = opscObjNames[i].substring(sstblVersionStartPos);
 
-                String tmp = opscObjNames[i].substring(0, mcFlagStartPos -1 );
+                String tmp = opscObjNames[i].substring(0, sstblVersionStartPos -1 );
                 int lastPathSeperatorPos = tmp.lastIndexOf('/');
 
                 String parentPathStr = tmp.substring(0, lastPathSeperatorPos);
@@ -268,7 +271,7 @@ public class DseOpscNFSRestore {
     }
 
     /**
-     * Get mapping from "unique_identifier" to "keyspace:table"
+     * Get mapping from "sstable_name" to "keyspace:table:sstable_unique_identifier:sstable_version"
      *
      * @param backupJsonFileName
      * @return
@@ -295,6 +298,7 @@ public class DseOpscNFSRestore {
                 String uniquifierStr = "";
                 String keyspaceName = "";
                 String tableName = "";
+                String ssTableVersion = "";
 
                 for ( String keyValuePair :  keyValuePairs ) {
                     String key = keyValuePair.split(":")[0];
@@ -305,6 +309,9 @@ public class DseOpscNFSRestore {
 
                     if ( key.equalsIgnoreCase("uniquifier") ) {
                         uniquifierStr = value;
+                    }
+                    else if ( key.equalsIgnoreCase("version") ) {
+                        ssTableVersion = value;
                     }
                     else if ( key.equalsIgnoreCase("keyspace") ) {
                         keyspaceName = value;
@@ -317,7 +324,7 @@ public class DseOpscNFSRestore {
                     }
                 }
 
-                opscObjMaps.put(ssTableName, keyspaceName + ":" + tableName + ":" + uniquifierStr);
+                opscObjMaps.put(ssTableName, keyspaceName + ":" + tableName + ":" + uniquifierStr + ":" + ssTableVersion);
             }
         }
         catch (Exception e) {
@@ -504,6 +511,7 @@ public class DseOpscNFSRestore {
         long[] opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
         String[] opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
         String[] opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
+        String[] opscSstableVersions = new String[SSTABLE_SET_FILENUM];
 
         int i = 0;
         int threadId = 0;
@@ -522,6 +530,7 @@ public class DseOpscNFSRestore {
             String[] ksTblUniquifer = opscUniquifierToKsTbls.get(sstableObjName).split(":");
             String ks = ksTblUniquifer[0];
             String tbl = ksTblUniquifer[1];
+            String version = ksTblUniquifer[3];
 
             boolean filterKsTbl = keyspaceName.equalsIgnoreCase(ks);
             if ((tableName != null) && !tableName.isEmpty()) {
@@ -549,6 +558,7 @@ public class DseOpscNFSRestore {
                 opscSstableObjKeySizes[i % SSTABLE_SET_FILENUM] = opscObjSize;
                 opscSstableKSNames[i % SSTABLE_SET_FILENUM] = ks;
                 opscSstableTBLNames[i % SSTABLE_SET_FILENUM] = tbl;
+                opscSstableVersions[i % SSTABLE_SET_FILENUM] = version;
 
                 if (download) {
                     if ((i > 0) && ((i + 1) % SSTABLE_SET_FILENUM == 0)) {
@@ -560,6 +570,7 @@ public class DseOpscNFSRestore {
                             opscSstableObjKeySizes,
                             opscSstableKSNames,
                             opscSstableTBLNames,
+                            opscSstableVersions,
                             noTargetDirStruct);
 
                         threadId++;
@@ -568,6 +579,7 @@ public class DseOpscNFSRestore {
                         opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
                         opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
                         opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
+                        opscSstableVersions = new String[SSTABLE_SET_FILENUM];
 
                         executor.execute(worker);
                     }
@@ -586,6 +598,7 @@ public class DseOpscNFSRestore {
                 opscSstableObjKeySizes,
                 opscSstableKSNames,
                 opscSstableTBLNames,
+                opscSstableVersions,
                 noTargetDirStruct);
 
             executor.execute(worker);
