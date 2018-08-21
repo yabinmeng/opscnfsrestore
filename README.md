@@ -189,7 +189,7 @@ When specifiying OpsCenter backup time, it <b>MUST</b> be
 
 ## 2.4. Multi-threaded Download and Local Download Folder Structure
 
-This utility is designed to be multi-threaded by nature to download multiple SSTable sets. When I say one SSTable set, it refers to the following files together:
+This utility is designed to be multi-threaded by nature to download multiple SSTable sets. When I say one SSTable set, it refers to the following files together, something as below:
 * mc-<#>-big-CompresssionInfo.db
 * mc-<#>-big-Data.db
 * mc-<#>-big-Filter.db
@@ -197,7 +197,7 @@ This utility is designed to be multi-threaded by nature to download multiple SST
 * mc-<#>-big-Statistics.db
 * mc-<#>-big-Summary.db
 
-**NOTE**: Currently this utility ONLY supports C* table with "mc" format (C* 3.0+/DSE 5.0/DSE5.1). It will be extended in the future to support other versions of formats.
+**NOTE**: the "mc" part at the beginning represents SSTable format version which correspsonds to a particular Cassandra version (such as "la", "lb", "ma", "mb", "mc", etc.). This utility supports all DSE versions (and corresponding SSTable formats). 
 
 Each thread is downloading one SSTable set. Multiple threads can download multiple sets concurrently. The maximum number threads that can concurrently download is determined by the value of <b>-d option</b>. If this option is not specified, then the utility only lists the OpsCenter backup SSTables without actually downloading it.
 
