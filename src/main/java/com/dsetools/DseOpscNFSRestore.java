@@ -133,7 +133,7 @@ class NFSObjDownloadRunnable implements  Runnable {
 public class DseOpscNFSRestore {
 
     private static Properties CONFIGPROP = null;
-    private static Map<Path, Long> NFS_BACKUP_FILELIST = null;
+    private static boolean debugOpt = false;
 
 
     /**
@@ -155,9 +155,6 @@ public class DseOpscNFSRestore {
             DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR + "/" +
             hostId;
 
-        String opscPrefixString = nodeHomeDirString + "/" +
-            DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_OPSC_MARKER_STR + "_";
-
         Path nodeHomeDirPath = Paths.get(nodeHomeDirString);
 
         IOFileFilter fileFilter = FileFilterUtils.nameFileFilter(DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE);
@@ -168,15 +165,38 @@ public class DseOpscNFSRestore {
 
         Path myBackupJsonFilePath = null;
 
+        if (debugOpt) {
+            System.out.println("     [DEBUG] getMyBackupJson() START ");
+            System.out.println("     [DEBUG]    opscBckupTimeGmtStr: " + opscBckupTimeGmtStr );
+        }
+
         for ( File file: opscBkupJsonFiles ) {
             String absFilePath = file.getAbsolutePath();
 
+            // <nfs_backup_home_dir>/snapshots/<host_id>/opscenter_<schedule_time_uuid_string>_yyyy-MM-dd-HH-mm-ss-UTC/backup.json
+            // <nfs_backup_home_dir>/snapshots/<host_id>/opscenter_adhoc_yyyy-MM-dd-HH-mm-ss-UTC/backup.json
+            int startOfTimeStampPos =
+                absFilePath.length()
+                - DseOpscNFSRestoreUtils.OPSC_BKUP_METADATA_FILE.length()  // "backup.json"
+                - 1     // "/"
+                - 23;   // "yyyy-MM-dd-HH-mm-ss-UTC"
+
             String backupTimeShortZeroSecondStr =
-                absFilePath.substring(opscPrefixString.length(), opscPrefixString.length() + 16) + "-00-UTC";
+                absFilePath.substring(startOfTimeStampPos, startOfTimeStampPos + 16) + "-00-UTC";
+
+            if (debugOpt) {
+                System.out.println("     [DEBUG]    absFilePath (backupTimeShortZeroSecondStr): " +
+                    absFilePath + "(" + backupTimeShortZeroSecondStr + ")");
+            }
 
             if (opscBckupTimeGmtStr.equalsIgnoreCase(backupTimeShortZeroSecondStr)) {
                 myBackupJsonFilePath = file.toPath();
             }
+        }
+
+        if (debugOpt) {
+            System.out.println("     [DEBUG]    myBackupJsonFilePath: " + myBackupJsonFilePath);
+            System.out.println("     [DEBUG] getMyBackupJson() END ");
         }
 
         return myBackupJsonFilePath;
@@ -832,20 +852,25 @@ public class DseOpscNFSRestore {
             true,
             "Clear existing download directory content");
         Option noDirStructOption = new Option(
-                DseOpscNFSRestoreUtils.CMD_OPTION_NODIR_SHORT,
-                DseOpscNFSRestoreUtils.CMD_OPTION_NODIR_LONG,
-                true,
-                "Don't maintain keyspace/table backup data directory structure");
+            DseOpscNFSRestoreUtils.CMD_OPTION_NODIR_SHORT,
+            DseOpscNFSRestoreUtils.CMD_OPTION_NODIR_LONG,
+            true,
+            "Don't maintain keyspace/table backup data directory structure");
         Option userOption = new Option(
-                DseOpscNFSRestoreUtils.CMD_OPTION_USER_SHORT,
-                DseOpscNFSRestoreUtils.CMD_OPTION_USER_LONG,
-                true,
-                "Cassandra user name");
+            DseOpscNFSRestoreUtils.CMD_OPTION_USER_SHORT,
+            DseOpscNFSRestoreUtils.CMD_OPTION_USER_LONG,
+            true,
+            "Cassandra user name");
         Option passwdOption = new Option(
-                DseOpscNFSRestoreUtils.CMD_OPTION_PWD_SHORT,
-                DseOpscNFSRestoreUtils.CMD_OPTION_PWD_LONG,
-                true,
-                "Cassandra user password");
+            DseOpscNFSRestoreUtils.CMD_OPTION_PWD_SHORT,
+            DseOpscNFSRestoreUtils.CMD_OPTION_PWD_LONG,
+            true,
+            "Cassandra user password");
+        Option debugOption = new Option(
+            DseOpscNFSRestoreUtils.CMD_OPTION_DEBUG_SHORT,
+            DseOpscNFSRestoreUtils.CMD_OPTION_DEBUG_LONG,
+            false,
+            "Debug output");
 
         options.addOption(helpOption);
         options.addOption(listOption);
@@ -858,6 +883,7 @@ public class DseOpscNFSRestore {
         options.addOption(noDirStructOption);
         options.addOption(userOption);
         options.addOption(passwdOption);
+        options.addOption(debugOption);
     }
 
     /**
@@ -872,7 +898,7 @@ public class DseOpscNFSRestore {
         try {
             HelpFormatter formatter = new HelpFormatter();
 
-            formatter.printHelp(errWriter, 150, "DseOpscS3Restore",
+            formatter.printHelp(errWriter, 150, "DseOpscNFSRestore",
                 String.format("\nDseOpscNFSRestore Options:"),
                 options, 2, 1, "", true);
 
@@ -1075,6 +1101,11 @@ public class DseOpscNFSRestore {
         // "-u" and "-p" option is optional.
         String userName = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_USER_SHORT);
         String passWord = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_PWD_SHORT);
+
+        // "-dbg" option is optional (default: false)
+        if ( cmd.hasOption(DseOpscNFSRestoreUtils.CMD_OPTION_DEBUG_SHORT) ) {
+            debugOpt = true;
+        }
 
 
         /**

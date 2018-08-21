@@ -54,6 +54,9 @@ public class DseOpscNFSRestoreUtils {
     static String CMD_OPTION_PWD_SHORT = "p";
     static String CMD_OPTION_PWD_LONG = "password";
 
+    static String CMD_OPTION_DEBUG_SHORT = "dbg";
+    static String CMD_OPTION_DEBUG_LONG = "debug";
+
 
     static Properties LoadConfigFile(String configFilePath) {
 
