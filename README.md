@@ -102,14 +102,15 @@ The program needs a few Java options and parameters to work properly:
             <td> No </td>
         </tr>
         <tr>
-            <td> -k &lt;keyspace_name&gt; </td>
-            <td> Download all OpsCenter backup SSTables that belong to the specified keyspace. </td>
-            <td> Yes </td>
+            <td> -k &lt;keyspace_name_list&gt; </td>
+            <td> Specify a list of keyspace names (separated by ";"). If not specified, it means ALL keyspaces. The specified keyspaces (or ALL keyspaces) are in the scope of the specified OpsCenter backup. Keyspaces that are not included in the OpsCenter backup are automatically ignored. </td>
+            <td> No </td>
         </tr>
         <tr>
-            <td> -t &lt;table_name&gt; </td>
-            <td> <li> Download all OpsCenter backup SSTables that belong to the specified table. </li> 
-                <li> When not specified, all Cassandra tables under the specified keyspace will be downloaded. </li>
+            <td> -t &lt;table_name_list&gt; </td>
+            <td> Specify a list of table names (separated by ";"). If not specified, 
+                 <li> When this option is provided, "-k" options must be provided with a single keyspace as the value. Otherwise, it is an error. </li>
+                 <li> The specified tables (or ALL tables) are in the scope ofthe specified keyspace. </li> 
             </td>
             <td> No </td>
         </tr>
