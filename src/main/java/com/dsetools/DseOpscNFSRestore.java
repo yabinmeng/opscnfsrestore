@@ -1162,9 +1162,9 @@ public class DseOpscNFSRestore {
         // Check whether "user_auth" config file parameter is true (default false).
         // - If so, command line parameter "-u (--user)" and "-p (--password)" must be set.
         boolean userAuth = false;
-        String userAuthStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL);
+        String userAuthStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USER_AUTH);
         if ( (userAuthStr != null) && !(userAuthStr.isEmpty()) ) {
-            userAuth = Boolean.parseBoolean(useSslStr);
+            userAuth = Boolean.parseBoolean(userAuthStr);
         }
 
         if (userAuth) {
