@@ -87,10 +87,15 @@ class NFSObjDownloadRunnable implements  Runnable {
                 String parentPathStr = tmp.substring(0, lastPathSeperatorPos);
                 parentPathStr = parentPathStr.substring(parentPathStr.indexOf(DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR));
 
+                boolean rawTableNameAvailable =
+                    ( (tableNames_UUID[i] != null) && (!tableNames_UUID[i].isEmpty()) );
+
+
                 File localFile = new File(downloadHomeDir + "/" +
                      ( noTargetDirStruct ? "" :
-                        (parentPathStr + "/" + keyspaceNames[i] + "/" + tableNames_UUID[i] + "/") ) +
-                        //(parentPathStr + "/" + keyspaceNames[i] + "/" + tableNames[i] + "/") ) +
+                         ( rawTableNameAvailable ?
+                             (parentPathStr + "/" + keyspaceNames[i] + "/" + tableNames_UUID[i] + "/") :
+                             (parentPathStr + "/" + keyspaceNames[i] + "/" + tableNames[i] + "/") ) ) +
                      realSStableName );
 
 
