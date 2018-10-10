@@ -15,7 +15,7 @@ public class DseOpscNFSRestoreUtils {
     static String CFG_KEY_USE_SSL = "use_ssl";
     static String CFG_KEY_USER_AUTH = "user_auth";
     static String CFG_KEY_FILE_SIZE_CHK = "file_size_chk";
-    static String CFG_KEY_BKUP_LIST_SRC_FILE = "bkuplist_src_file";
+    static String CFG_KEY_BKUP_LIST_SRC_FILENAME = "bkuplist_src_file_name";
 
     static String JAVA_SSL_TRUSTSTORE_PROP = "javax.net.ssl.trustStore";
     static String JAVA_SSL_TRUSTSTORE_PASS_PROP = "javax.net.ssl.trustStorePassword";
@@ -74,7 +74,7 @@ public class DseOpscNFSRestoreUtils {
             String useSslStr = configProps.getProperty(CFG_KEY_USE_SSL);
             String userAuthStr = configProps.getProperty(CFG_KEY_USER_AUTH);
             String fileSizeMonStr = configProps.getProperty(CFG_KEY_FILE_SIZE_CHK);
-            String bkupListSrcFile = configProps.getProperty(CFG_KEY_BKUP_LIST_SRC_FILE);
+            String bkupListSrcFile = configProps.getProperty(CFG_KEY_BKUP_LIST_SRC_FILENAME);
 
             // An active DSE contact point is not a must for all cases. Log a warning message if not specified.
             if ( (dseContactPoint == null) || dseContactPoint.isEmpty() ) {
@@ -134,7 +134,7 @@ public class DseOpscNFSRestoreUtils {
             // The backup list source file specifies the original backup folder structure for each backed-up file.
             // Log a warning message if this property setting not specified.
             if ( (bkupListSrcFile == null) || bkupListSrcFile.isEmpty() ) {
-                System.out.println("WARN: Empty value for configuration file parameter \"" + CFG_KEY_BKUP_LIST_SRC_FILE + "\".");
+                System.out.println("WARN: Empty value for configuration file parameter \"" + CFG_KEY_BKUP_LIST_SRC_FILENAME + "\".");
             }
         }
         catch (IOException ioe) {

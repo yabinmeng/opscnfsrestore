@@ -22,6 +22,8 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 class NFSObjDownloadRunnable implements  Runnable {
@@ -32,6 +34,7 @@ class NFSObjDownloadRunnable implements  Runnable {
     private long[] opscObjSizes;
     private String[] keyspaceNames;
     private String[] tableNames;
+    private String[] tableNames_UUID;
     private String[] sstableVersions;
     private boolean noTargetDirStruct;
 
@@ -44,6 +47,7 @@ class NFSObjDownloadRunnable implements  Runnable {
                            long[] object_sizes,
                            String[] ks_names,
                            String[] tbl_names,
+                           String[] org_tbl_uuid_names,
                            String[] sstable_versions,
                            boolean no_dir_struct ) {
         assert (tID > 0);
@@ -55,6 +59,7 @@ class NFSObjDownloadRunnable implements  Runnable {
         this.opscObjSizes = object_sizes;
         this.keyspaceNames = ks_names;
         this.tableNames = tbl_names;
+        this.tableNames_UUID = org_tbl_uuid_names;
         this.sstableVersions = sstable_versions;
         this.noTargetDirStruct = no_dir_struct;
 
@@ -84,7 +89,8 @@ class NFSObjDownloadRunnable implements  Runnable {
 
                 File localFile = new File(downloadHomeDir + "/" +
                      ( noTargetDirStruct ? "" :
-                        (parentPathStr + "/" + keyspaceNames[i] + "/" + tableNames[i] + "/") ) +
+                        (parentPathStr + "/" + keyspaceNames[i] + "/" + tableNames_UUID[i] + "/") ) +
+                        //(parentPathStr + "/" + keyspaceNames[i] + "/" + tableNames[i] + "/") ) +
                      realSStableName );
 
 
@@ -154,7 +160,7 @@ public class DseOpscNFSRestore {
         String opscBckupTimeGmtStr = opscBckupTimeGmt.format(opscObjTimeFormatter);
 
         String nodeHomeDirString =
-            CONFIGPROP.get(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
+            CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
             DseOpscNFSRestoreUtils.OPSC_NFS_OBJKEY_BASESTR + "/" +
             hostId;
 
@@ -294,7 +300,7 @@ public class DseOpscNFSRestore {
 
                 String[] keyValuePairs = jsonItemContent.split(",");
 
-                String ssTableName = "";
+                String ssTableName = "";        // OpsCenter backup SSTable name (having uniquifier)
                 String uniquifierStr = "";
                 String keyspaceName = "";
                 String tableName = "";
@@ -410,14 +416,70 @@ public class DseOpscNFSRestore {
 
 
     /**
+     * Get mapping from "keyspace_name:table_name_no_uuid:sstable_name" to
+     * orginal backup location in format "<keyspace>/<table_name_with_uuid>"
+     *
+     * @param opscBackupMetadataFolder
+     * @return
+     */
+    static Map<String, String> getOpscBkupSStableOrigLocMapping(String opscBackupMetadataFolder) {
+
+        LinkedHashMap<String, String> opscBkupOrgLocjMaps = new LinkedHashMap<String, String>();
+
+        String opscBkupList_Src_FileName = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_BKUP_LIST_SRC_FILENAME);
+
+        if ( (opscBkupList_Src_FileName != null) && (!opscBkupList_Src_FileName.isEmpty()) ) {
+
+            // check if the backup list source file is valid:
+            // - can be found from OpsCenter backup metadata directory
+            // - is not a directory
+            // - readable
+            Path opsBkupListSrcPath = Paths.get(opscBackupMetadataFolder + "/" + opscBkupList_Src_FileName);
+            if ( Files.exists(opsBkupListSrcPath) &&
+                 Files.isRegularFile(opsBkupListSrcPath) &&
+                 Files.isReadable(opsBkupListSrcPath) ) {
+
+                List<String> listOfLines = new ArrayList<>();
+
+                // processing the contents of the backup list source file
+                try (Stream<String> stream = Files.lines(opsBkupListSrcPath) ) {
+
+                    listOfLines = stream.collect(Collectors.toList());
+
+                    for (String line: listOfLines) {
+
+                        String[] items = line.split(":");
+
+                        String casDirBase = items[0].trim();
+                        String ksName = items[1].trim();
+                        String tblName_uuid = items[2].trim();
+                        String tblName_nouuid = tblName_uuid.split("-")[0];
+                        String ssTableName = items[3].trim();
+
+                        opscBkupOrgLocjMaps.put(
+                            ksName + ":" + tblName_nouuid + ":" +ssTableName,
+                            tblName_uuid);
+                            //ksName + "/" + tblName_uuid);
+                    }
+                }
+                catch (IOException ioe) {
+                    ioe.printStackTrace();
+                }
+            }
+        }
+
+        return opscBkupOrgLocjMaps;
+    }
+
+    /**
      * List (and download) Opsc backup objects for a specified host
      *
      * @param fileSizeChk
      * @param hostId
      * @param download
      * @param threadNum
-     * @param keyspaceName
-     * @param tableName
+     * @param keyspaceNames
+     * @param tableNames
      * @param opscBckupTimeGmt
      * @param clearTargetDownDir
      * @param noTargetDirStruct
@@ -426,8 +488,8 @@ public class DseOpscNFSRestore {
                                           String hostId,
                                           boolean download,
                                           int threadNum,
-                                          String keyspaceName,
-                                          String tableName,
+                                          List<String> keyspaceNames,
+                                          List<String> tableNames,
                                           ZonedDateTime opscBckupTimeGmt,
                                           boolean clearTargetDownDir,
                                           boolean noTargetDirStruct )
@@ -463,6 +525,7 @@ public class DseOpscNFSRestore {
         }
 
         Map<String, String> opscUniquifierToKsTbls = new HashMap<String, String>();
+        Map<String, String> opscSSTableOrgLocs = new HashMap<String, String>();
 
         Path myBackupJsonFilePath = getMyBackupJson(hostId, opscBckupTimeGmt);
 
@@ -478,8 +541,20 @@ public class DseOpscNFSRestore {
             return;
         }
         else {
+            // If "bkuplist_src_file_name" property setting is provided in the configuration file,
+            // you can find it either by its full path if provided, or try to find it under the
+            // same folder as "backup.json" file (as per the "post-backup" script) .
+            //
+            // From this file, we can find out the original folder structure from where each SSTable
+            // file is backed up from, which is:
+            //      <cassandra_data_home_dir>/<keyspace_name>/<table_name_with_uuid>
+
+
+            opscSSTableOrgLocs = getOpscBkupSStableOrigLocMapping(myBackupJsonFilePath.toFile().getParent());
+
             opscUniquifierToKsTbls =
                 getOpscUniquifierToKsTblMapping(myBackupJsonFilePath.toFile().getAbsolutePath());
+
         }
 
 
@@ -511,6 +586,7 @@ public class DseOpscNFSRestore {
         long[] opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
         String[] opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
         String[] opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
+        String[] opscSstableOrgTBLUuidNames = new String[SSTABLE_SET_FILENUM];
         String[] opscSstableVersions = new String[SSTABLE_SET_FILENUM];
 
         int i = 0;
@@ -530,11 +606,16 @@ public class DseOpscNFSRestore {
             String[] ksTblUniquifer = opscUniquifierToKsTbls.get(sstableObjName).split(":");
             String ks = ksTblUniquifer[0];
             String tbl = ksTblUniquifer[1];
+            String uniquifier_prefix = ksTblUniquifer[2];
+            String ssTableRawName = sstableObjName.substring(uniquifier_prefix.length()  + 1);
             String version = ksTblUniquifer[3];
 
-            boolean filterKsTbl = keyspaceName.equalsIgnoreCase(ks);
-            if ((tableName != null) && !tableName.isEmpty()) {
-                filterKsTbl = filterKsTbl && tableName.equalsIgnoreCase(tbl);
+            boolean filterKsTbl = true;
+            if ((keyspaceNames != null) && !keyspaceNames.isEmpty()) {
+                filterKsTbl = keyspaceNames.contains(ks);
+            }
+            if ((tableNames != null) && !tableNames.isEmpty()) {
+                filterKsTbl = filterKsTbl && tableNames.contains(tbl);
             }
 
             if (filterKsTbl) {
@@ -558,7 +639,9 @@ public class DseOpscNFSRestore {
                 opscSstableObjKeySizes[i % SSTABLE_SET_FILENUM] = opscObjSize;
                 opscSstableKSNames[i % SSTABLE_SET_FILENUM] = ks;
                 opscSstableTBLNames[i % SSTABLE_SET_FILENUM] = tbl;
-                opscSstableVersions[i % SSTABLE_SET_FILENUM] = version;
+                opscSstableOrgTBLUuidNames[i % SSTABLE_SET_FILENUM] =
+                    opscSSTableOrgLocs.get(ks + ":" + tbl + ":" + ssTableRawName);
+            opscSstableVersions[i % SSTABLE_SET_FILENUM] = version;
 
                 if (download) {
                     if ((i > 0) && ((i + 1) % SSTABLE_SET_FILENUM == 0)) {
@@ -570,6 +653,7 @@ public class DseOpscNFSRestore {
                             opscSstableObjKeySizes,
                             opscSstableKSNames,
                             opscSstableTBLNames,
+                            opscSstableOrgTBLUuidNames,
                             opscSstableVersions,
                             noTargetDirStruct);
 
@@ -579,6 +663,7 @@ public class DseOpscNFSRestore {
                         opscSstableObjKeySizes = new long[SSTABLE_SET_FILENUM];
                         opscSstableKSNames = new String[SSTABLE_SET_FILENUM];
                         opscSstableTBLNames = new String[SSTABLE_SET_FILENUM];
+                        opscSstableOrgTBLUuidNames = new String[SSTABLE_SET_FILENUM];
                         opscSstableVersions = new String[SSTABLE_SET_FILENUM];
 
                         executor.execute(worker);
@@ -598,6 +683,7 @@ public class DseOpscNFSRestore {
                 opscSstableObjKeySizes,
                 opscSstableKSNames,
                 opscSstableTBLNames,
+                opscSstableOrgTBLUuidNames,
                 opscSstableVersions,
                 noTargetDirStruct);
 
@@ -624,8 +710,8 @@ public class DseOpscNFSRestore {
      * @param download
      * @param threadNum
      * @param hostIDStr
-     * @param keyspaceName
-     * @param tableName
+     * @param keyspaceNames
+     * @param tableNames
      * @param opscBckupTimeGmt
      * @param clearTargetDownDir
      * @param noTargetDirStruct
@@ -635,8 +721,8 @@ public class DseOpscNFSRestore {
                                         boolean download,
                                         int threadNum,
                                         String hostIDStr,
-                                        String keyspaceName,
-                                        String tableName,
+                                        List<String> keyspaceNames,
+                                        List<String> tableNames,
                                         ZonedDateTime opscBckupTimeGmt,
                                         boolean clearTargetDownDir,
                                         boolean noTargetDirStruct) {
@@ -653,8 +739,8 @@ public class DseOpscNFSRestore {
                 myHostId,
                 download,
                 threadNum,
-                keyspaceName,
-                tableName,
+                keyspaceNames,
+                tableNames,
                 opscBckupTimeGmt,
                 clearTargetDownDir,
                 noTargetDirStruct
@@ -667,24 +753,47 @@ public class DseOpscNFSRestore {
      *
      * @param dseClusterMetadata
      * @param fileSizeChk
-     * @param keyspaceName
-     * @param tableName
+     * @param keyspaceNames
+     * @param tableNames
      * @param opscBckupTimeGmt
      */
     static void listNFSObjtForCluster(Metadata dseClusterMetadata,
                                       boolean fileSizeChk,
-                                      String keyspaceName,
-                                      String tableName,
+                                      List<String> keyspaceNames,
+                                      List<String> tableNames,
                                       ZonedDateTime opscBckupTimeGmt) {
+
+        String ksListString = "ALL";
+        String tblListString = "ALL";
+
+        if ( (keyspaceNames != null) && (!keyspaceNames.isEmpty()) ) {
+            ksListString = "";
+
+            for (int i=0; i < keyspaceNames.size(); i++) {
+                ksListString += keyspaceNames.get(i);
+                if (i < (keyspaceNames.size() - 1) ) {
+                    ksListString += "; ";
+                }
+            }
+        }
+
+        if ( (tableNames != null) && (!tableNames.isEmpty()) ) {
+            tblListString = "";
+
+            for (int i=0; i < tableNames.size(); i++) {
+                tblListString += tableNames.get(i);
+                if (i < (tableNames.size() - 1) ) {
+                    tblListString += "; ";
+                }
+            }
+        }
 
         System.out.format("\nList OpsCenter NFS backup items for DSE cluster (%s) [%s] ...\n",
                 dseClusterMetadata.getClusterName(),
-                ((tableName == null) || (tableName.isEmpty())) ?
-                        "Keyspace - " + keyspaceName :
-                        "Table - " + keyspaceName + ":" + tableName
-        );
+                "Keyspace list: " + ksListString + " / " +
+                "Table list: " + tblListString );
 
-        listNFSObjForDC(dseClusterMetadata, fileSizeChk, "", keyspaceName, tableName, opscBckupTimeGmt);
+        listNFSObjForDC(dseClusterMetadata, fileSizeChk, "", keyspaceNames, tableNames, opscBckupTimeGmt);
     }
 
     /**
@@ -692,32 +801,54 @@ public class DseOpscNFSRestore {
      *
      * @param dseClusterMetadata
      * @param fileSizeChk
-     * @param keyspaceName
+     * @param keyspaceNames
      * @param dcName
-     * @param tableName
+     * @param tableNames
      * @param opscBckupTimeGmt
      */
     static void listNFSObjForDC(Metadata dseClusterMetadata,
                                 boolean fileSizeChk,
                                 String dcName,
-                                String keyspaceName,
-                                String tableName,
+                                List<String> keyspaceNames,
+                                List<String> tableNames,
                                 ZonedDateTime opscBckupTimeGmt) {
         assert (CONFIGPROP != null);
-        assert ( (keyspaceName != null) && !keyspaceName.isEmpty() );
         assert (opscBckupTimeGmt != null);
 
         Set<Host> hosts = dseClusterMetadata.getAllHosts();
 
         boolean dcOnly = ( (dcName != null) && !dcName.isEmpty() );
         if ( dcOnly ) {
+            String ksListString = "ALL";
+            String tblListString = "ALL";
+
+            if ( (keyspaceNames != null) && (!keyspaceNames.isEmpty()) ) {
+                ksListString = "";
+
+                for (int i=0; i < keyspaceNames.size(); i++) {
+                    ksListString += keyspaceNames.get(i);
+                    if (i < (keyspaceNames.size() - 1) ) {
+                        ksListString += "; ";
+                    }
+                }
+            }
+
+            if ( (tableNames != null) && (!tableNames.isEmpty()) ) {
+                tblListString = "";
+
+                for (int i=0; i < tableNames.size(); i++) {
+                    tblListString += tableNames.get(i);
+                    if (i < (tableNames.size() - 1) ) {
+                        tblListString += "; ";
+                    }
+                }
+            }
+
             System.out.format("\nList OpsCenter NFS backup items for specified DC (%s) of DSE cluster (%s) [%s] ...\n",
                 dcName,
                 dseClusterMetadata.getClusterName(),
-                ((tableName == null) || (tableName.isEmpty())) ?
-                        "Keyspace - " + keyspaceName :
-                        "Table - " + keyspaceName + ":" + tableName
-            );
+                "Keyspace list: " + ksListString + " / " +
+                "Table list: " + tblListString );
         }
 
         for ( Host host : hosts ) {
@@ -765,7 +896,7 @@ public class DseOpscNFSRestore {
                 }
 
 
-                // Second, check SSTables records matching the backup time, keyspace, and table
+                // Second, check SSTables records matching the backup time, keyspaces, and tables
 
                 String sstablePrefixString =
                     CONFIGPROP.get(DseOpscNFSRestoreUtils.CFG_KEY_OPSC_NFS_BKUP_HOMEDIR) + "/" +
@@ -783,9 +914,12 @@ public class DseOpscNFSRestore {
                         String ks = ksTblUniquifer[0];
                         String tbl = ksTblUniquifer[1];
 
-                        boolean filterKsTbl = keyspaceName.equalsIgnoreCase(ks);
-                        if ((tableName != null) && !tableName.isEmpty()) {
-                            filterKsTbl = filterKsTbl && tableName.equalsIgnoreCase(tbl);
+                        boolean filterKsTbl = true;
+                        if ((keyspaceNames != null) && !keyspaceNames.isEmpty()) {
+                            filterKsTbl = keyspaceNames.contains(ks);
+                        }
+                        if ((tableNames != null) && !tableNames.isEmpty()) {
+                            filterKsTbl = filterKsTbl && tableNames.contains(tbl);
                         }
 
                         if (filterKsTbl) {
@@ -1044,19 +1178,41 @@ public class DseOpscNFSRestore {
             }
         }
 
-        // "-k" option (Keyspace name) is a must
-        String keyspaceName = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_KEYSPACE_SHORT);
-        if ( (keyspaceName == null) || keyspaceName.isEmpty() ) {
-            System.out.println("\nERROR: Please specify proper keypsace name as the \"-" +
-                DseOpscNFSRestoreUtils.CMD_OPTION_KEYSPACE_SHORT + "\" option value.\n");
+        // "-k" option (Keyspace name) is optional. If not specified, all Keyspaces backed up from the
+        //    specified OpsCenter backup time will be restored.
+        String keyspaceListStr = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_KEYSPACE_SHORT);
+        List<String> keyspaceNames = null;
+
+        if ( (keyspaceListStr != null) && (!keyspaceListStr.isEmpty()) ) {
+            String strs[] = keyspaceListStr.split(";");
+
+            keyspaceNames = new ArrayList<>();
+            for (String str: strs) {
+                keyspaceNames.add(str.trim());
+            }
+        }
+
+        // "-t" option (Table name) is optional. If not specified, all Tables of the specified Keyspace will be processed.
+        // However, specifying table names without a Keyspace name or multiple Keyspace names is an error.
+        String tableListStr = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_TABLE_SHORT);
+        List<String> tableNames = null;
+
+        if ( (tableListStr != null) && (!tableListStr.isEmpty()) ) {
+            String strs[] = tableListStr.split(";");
+
+            tableNames = new ArrayList<>();
+            for (String str: strs) {
+                tableNames.add(str.trim());
+            }
+        }
+
+        if ( (tableNames != null) && ( (keyspaceNames == null) || (keyspaceNames.size() > 1) ) ) {
+            System.out.println("\nERROR: Specifying table names without a keyspace or with multiple keyspaces!");
             usageAndExit(70);
         }
 
-        // "-t" option (Table name) is optional. If not specified, all Tables of the specified keyspaces will be processed.
-        String tableName = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_TABLE_SHORT);
-
         // "-obt" option is a must
-        // OpsCenter Backup Date Time String (Can get  from OpsCenter Backup Service Window)
+        // OpsCenter Backup Date Time String (Can get from OpsCenter Backup Service Window)
         String obtOptOptValue = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_BACKUPTIME_SHORT);
 
         if ( (obtOptOptValue == null) || (obtOptOptValue.isEmpty()) ) {
@@ -1094,8 +1250,10 @@ public class DseOpscNFSRestore {
         }
 
         // "-nds" option is optional.
-        // ONLY works when "-t"/"--table" option is provided;
-        //    Otherwise, target directory structure is automatically maintained.
+        // ONLY works when "-t"/"--table" option is provided and only one table is specified;
+        //    - If multiple tables are implied or specified, the target directory structure is
+        //      automatically maintained.
+        //    - The reason of this is to avoid overwriting of the same SSTable name from multiple tables
         boolean noTargetDirStruct = false;
         String ndsOptOptValue = cmd.getOptionValue(DseOpscNFSRestoreUtils.CMD_OPTION_NODIR_SHORT);
 
@@ -1103,7 +1261,7 @@ public class DseOpscNFSRestore {
             try {
                 noTargetDirStruct = Boolean.parseBoolean(ndsOptOptValue);
 
-                if  ( (tableName == null) || tableName.isEmpty() ) {
+                if  ( (tableNames == null) || tableNames.isEmpty() || tableNames.size() > 1) {
                     noTargetDirStruct = false;
                 }
             }
@@ -1162,9 +1320,9 @@ public class DseOpscNFSRestore {
         // Check whether "user_auth" config file parameter is true (default false).
         // - If so, command line parameter "-u (--user)" and "-p (--password)" must be set.
         boolean userAuth = false;
-        String userAuthStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USE_SSL);
+        String userAuthStr = CONFIGPROP.getProperty(DseOpscNFSRestoreUtils.CFG_KEY_USER_AUTH);
         if ( (userAuthStr != null) && !(userAuthStr.isEmpty()) ) {
-            userAuth = Boolean.parseBoolean(useSslStr);
+            userAuth = Boolean.parseBoolean(userAuthStr);
         }
 
         if (userAuth) {
@@ -1288,8 +1446,8 @@ public class DseOpscNFSRestore {
             listNFSObjtForCluster(
                 dseClusterMetadata,
                 fileSizeChk,
-                keyspaceName,
-                tableName,
+                keyspaceNames,
+                tableNames,
                 opscBackupTime_gmt);
         }
         // List OpsCenter backup SSTables for all hosts in a specified DC of the Dse cluster
@@ -1298,8 +1456,8 @@ public class DseOpscNFSRestore {
                 dseClusterMetadata,
                 fileSizeChk,
                 dcNameToList,
-                keyspaceName,
-                tableName,
+                keyspaceNames,
+                tableNames,
                 opscBackupTime_gmt);
         }
         // List (and download) OpsCenter backup SSTables for myself (the host that runs this program)
@@ -1310,8 +1468,8 @@ public class DseOpscNFSRestore {
                 downloadOpscObj,
                 downloadOpscObjThreadNum,
                 myHostID,
-                keyspaceName,
-                tableName,
+                keyspaceNames,
+                tableNames,
                 opscBackupTime_gmt,
                 clearTargetDownDir,
                 noTargetDirStruct );
