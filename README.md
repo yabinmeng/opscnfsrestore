@@ -158,6 +158,7 @@ ip_matching_nic: <NIC_name_for_IP_matching>
 use_ssl: <true | false>
 user_auth: <true | false>
 file_size_chk: <true | false>
+bkuplist_src_file_name: <opsc_backup_list_src_file_name (no file path)>
 ```
 Most of these items are straightforward and I'll explain some of them a little bit more.
 
