@@ -641,7 +641,7 @@ public class DseOpscNFSRestore {
                 opscSstableTBLNames[i % SSTABLE_SET_FILENUM] = tbl;
                 opscSstableOrgTBLUuidNames[i % SSTABLE_SET_FILENUM] =
                     opscSSTableOrgLocs.get(ks + ":" + tbl + ":" + ssTableRawName);
-            opscSstableVersions[i % SSTABLE_SET_FILENUM] = version;
+                opscSstableVersions[i % SSTABLE_SET_FILENUM] = version;
 
                 if (download) {
                     if ((i > 0) && ((i + 1) % SSTABLE_SET_FILENUM == 0)) {
