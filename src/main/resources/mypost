@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# root NFS backup directory
+NFS_BKUP_DIR_ROOT=<LOCAL_FS_BACKUP_HOME_DIR>
+
+# original backup file list (backup source - the files under C* data directory to be backed up)
+OPSC_BKUP_FILE_LIST_SRC=opsc_bkup_filelist_src
+
+# DSE HOST ID (as exposed from "nodetool status") for the current node
+DSE_HOST_ID=`nodetool info | head -1 | awk -F" : " '{print $2}'`
+
+# Current date-time
+DATE_TIME_STR=`date -u +%F-%H-%M-%S-%Z`
+DATE_TIME_ZERO_SEC_STR=`date -u +%F-%H-%M-00-%Z`
+
+
+# Target NFS backup lcoation of the original backup file list
+TARGET_DIR=$NFS_BKUP_DIR_ROOT/snapshots/$DSE_HOST_ID
+
+
+# Loop through
+# "sstable_name" example (testing purpose)
+#sstable_name=/var/lib/cassandra/data/testks/testbl-4a730481c28911e8b98af751a338b692/snapshots/opscenter_5f0538f2-1b5b-497b-a9ca-5179335d9cee_2018-09-28-18-28-00-UTC/mc-1-big-Index.db
+while read sstable_name; do
+   # "str1" example: /var/lib/cassandra/data/testks/testbl-4a730481c28911e8b98af751a338b692
+   str1=`echo $sstable_name | awk -F/snapshots/ '{print $1}'`
+
+   # "str2" example: opscenter_5f0538f2-1b5b-497b-a9ca-5179335d9cee_2018-09-28-18-28-00-UTC/mc-1-big-Index.db
+   str2=`echo $sstable_name | awk -F/snapshots/ '{print $2}'`
+
+   table_dir=`echo $str1 | awk -F/ '{print $NF}'`
+   keyspace_dir=`echo $str1 | awk -F/ '{print $(NF-1)}'`
+   casdata_home_dir=`echo $str1 | awk -F"/$keyspace_dir/" '{print $1}'`
+
+   sstbl_file_name=`echo $str2 | awk -F/ '{print $NF}'`
+   opsc_bkup_loc=`echo $str2 | awk -F/ '{print $(NF-1)}'`
+
+   TARGET_FILE=$TARGET_DIR/$opsc_bkup_loc/$OPSC_BKUP_FILE_LIST_SRC
+   if [[ ! -d "$TARGET_DIR/$opsc_bkup_loc/" ]]; then
+      mkdir -p "$TARGET_DIR/$opsc_bkup_loc/"
+      #sudo chown -R cassandra:cassandra "$TARGET_DIR/$opsc_bkup_loc/"
+      #sudo chmod 755 "$TARGET_DIR/$opsc_bkup_loc/"
+      truncate -s 0 $TARGET_FILE
+      #sudo chmod 766 $TARGET_FILE
+   fi
+
+   echo "$casdata_home_dir : $keyspace_dir : $table_dir : $sstbl_file_name" >> $TARGET_FILE
+done
